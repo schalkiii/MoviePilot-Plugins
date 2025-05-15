@@ -1,6 +1,6 @@
 {
     "CrossSeed": {
-        "name": "青蛙辅种助手",
+        "name": "青蛙辅种助手跳验版",
         "description": "参考ReseedPuppy和IYUU辅种插件实现自动辅种",
         "labels": "做种",
         "version": "3.0.1",
