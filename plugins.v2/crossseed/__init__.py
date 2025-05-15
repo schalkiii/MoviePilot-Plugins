@@ -212,7 +212,7 @@ class CrossSeed(_PluginBase):
     _clearcache = False
     # 退出事件
     _event = Event()
-    _torrent_tags = ["已整理", "辅种"]
+    _torrent_tags = ["青蛙辅种"]
     # 待校全种子hash清单
     _recheck_torrents = {}
     _is_recheck_running = False
@@ -1057,7 +1057,8 @@ class CrossSeed(_PluginBase):
             state = service.instance.add_torrent(content=content,
                                         download_dir=save_path,
                                         is_paused=True,
-                                        tag=["已整理", "辅种", tag])
+										skip_checking=True,  # 添加此参数跳过hash校验
+                                        tag=["青蛙辅种", tag])
             if not state:
                 return None
             else:
@@ -1072,7 +1073,7 @@ class CrossSeed(_PluginBase):
             torrent = service.instance.add_torrent(content=content,
                                           download_dir=save_path,
                                           is_paused=True,
-                                          labels=["已整理", "辅种"])
+                                          labels=["青蛙辅种"])
             if not torrent:
                 return None
             else:
@@ -1148,7 +1149,7 @@ class CrossSeed(_PluginBase):
             self.success += 1
             logger.info(f"添加校验检查任务：{download_id} ...")
             if service.type == "qbittorrent":
-                downloader_obj.recheck_torrents(ids=[download_id])
+            #    downloader_obj.recheck_torrents(ids=[download_id])
                 self.__add_recheck_torrents(service, download_id)
             else:
                 self.__add_recheck_torrents(service, download_id)
