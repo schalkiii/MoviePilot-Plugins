@@ -55,9 +55,9 @@ class XhttpDownloadSettings(BaseModel):
     seq_key: Optional[str] = Field(None, alias='seq-key')
     uplink_data_placement: Optional[str] = Field(None, alias='uplink-data-placement')
     uplink_data_key: Optional[str] = Field(None, alias='uplink-data-key')
-    uplink_chunk_size: Optional[str] = Field(None, alias='uplink-chunk-size')
-    sc_max_each_post_bytes: Optional[str] = Field(None, alias='sc-max-each-post-bytes')
-    sc_min_posts_interval_ms: Optional[str] = Field(None, alias='sc-min-posts-interval-ms')
+    uplink_chunk_size: Optional[int] = Field(None, alias='uplink-chunk-size')
+    sc_max_each_post_bytes: Optional[int] = Field(None, alias='sc-max-each-post-bytes')
+    sc_min_posts_interval_ms: Optional[int] = Field(None, alias='sc-min-posts-interval-ms')
     reuse_settings: Optional[XhttpReuseSettings] = Field(None, alias='reuse-settings')
 
     # proxy part
@@ -92,9 +92,9 @@ class XhttpOpts(BaseModel):
     seq_key: Optional[str] = Field(None, alias='seq-key')
     uplink_data_placement: Optional[str] = Field(None, alias='uplink-data-placement')
     uplink_data_key: Optional[str] = Field(None, alias='uplink-data-key')
-    uplink_chunk_size: Optional[str] = Field(None, alias='uplink-chunk-size')
-    sc_max_each_post_bytes: Optional[str] = Field(None, alias='sc-max-each-post-bytes')
-    sc_min_posts_interval_ms: Optional[str] = Field(None, alias='sc-min-posts-interval-ms')
+    uplink_chunk_size: Optional[int] = Field(None, alias='uplink-chunk-size')
+    sc_max_each_post_bytes: Optional[int] = Field(None, alias='sc-max-each-post-bytes')
+    sc_min_posts_interval_ms: Optional[int] = Field(None, alias='sc-min-posts-interval-ms')
     reuse_settings: Optional[XhttpReuseSettings] = Field(None, alias='reuse-settings')
     download_settings: Optional[XhttpDownloadSettings] = Field(None, alias='download-settings')
 
@@ -106,3 +106,4 @@ class NetworkMixin(BaseModel):
     h2_opts: Optional[H2Opts] = Field(None, alias='h2-opts')
     grpc_opts: Optional[GrpcOpts] = Field(None, alias='grpc-opts')
     ws_opts: Optional[WsOpts] = Field(None, alias='ws-opts')
+    xhttp_opts: Optional[XhttpOpts] = Field(None, alias='xhttp-opts')
