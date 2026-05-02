@@ -15163,7 +15163,7 @@ const _sfc_main$2 = /* @__PURE__ */ _defineComponent$2({
       });
       if (props.allowRefresh && componentConfig.clash_available) {
         evtSource = new EventSource(
-          "api/v1/plugin/ClashRuleProvider/clash/ws/traffic?secret=" + componentConfig.secret
+          "api/v1/plugin/ClashRuleProvider/clash/ws/traffic?secret=" + encodeURIComponent(componentConfig.secret)
         );
         evtSource.addEventListener("traffic", (event) => {
           const data = JSON.parse(event.data);
@@ -15177,7 +15177,7 @@ const _sfc_main$2 = /* @__PURE__ */ _defineComponent$2({
           }
         });
         connectionsEvtSource = new EventSource(
-          "api/v1/plugin/ClashRuleProvider/clash/ws/connections?secret=" + componentConfig.secret
+          "api/v1/plugin/ClashRuleProvider/clash/ws/connections?secret=" + encodeURIComponent(componentConfig.secret)
         );
         connectionsEvtSource.addEventListener("connections", (event) => {
           const data = JSON.parse(event.data);
