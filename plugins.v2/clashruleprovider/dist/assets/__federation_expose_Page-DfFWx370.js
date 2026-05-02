@@ -10863,14 +10863,22 @@ const _sfc_main$c = /* @__PURE__ */ _defineComponent$c({
       loading.value = true;
       emit("start-loading");
       try {
-        await props.api.put("plugin/ClashRuleProvider/refresh", {
+        const result = await props.api.put("plugin/ClashRuleProvider/refresh", {
           url: props.url
         });
-        emit("show-snackbar", {
-          show: true,
-          message: "订阅更新成功",
-          color: "success"
-        });
+        if (result.success) {
+          emit("show-snackbar", {
+            show: true,
+            message: "订阅更新成功",
+            color: "success"
+          });
+        } else {
+          emit("show-snackbar", {
+            show: true,
+            message: "订阅更新失败",
+            color: "error"
+          });
+        }
         emit("refresh", [
           "status",
           "clash-outbounds",
@@ -10887,6 +10895,7 @@ const _sfc_main$c = /* @__PURE__ */ _defineComponent$c({
       }
     }
     async function toggleSubscription(val) {
+      if (val === null) return;
       emit("start-loading");
       try {
         await props.api.post("plugin/ClashRuleProvider/subscription-info", {
@@ -11089,7 +11098,7 @@ const _sfc_main$c = /* @__PURE__ */ _defineComponent$c({
   }
 });
 
-const SubscriptionCard = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["__scopeId", "data-v-97c0f367"]]);
+const SubscriptionCard = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["__scopeId", "data-v-b5b6e9bb"]]);
 
 const {defineComponent:_defineComponent$b} = await importShared('vue');
 

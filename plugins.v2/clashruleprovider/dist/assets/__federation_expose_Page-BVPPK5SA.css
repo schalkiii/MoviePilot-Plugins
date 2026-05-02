@@ -11,21 +11,21 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
-.subscription-card[data-v-97c0f367] {
+.subscription-card[data-v-b5b6e9bb] {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.subscription-card[data-v-97c0f367]:hover {
+.subscription-card[data-v-b5b6e9bb]:hover {
   transform: translateY(-4px);
   box-shadow: 0 4px 25px 0 rgba(0, 0, 0, 0.1);
   border-color: rgb(var(--v-theme-primary));
 }
-.card-header[data-v-97c0f367] {
+.card-header[data-v-b5b6e9bb] {
   background: rgba(var(--v-theme-surface-variant), 0.05);
 }
-.bg-surface-variant-lighten[data-v-97c0f367] {
+.bg-surface-variant-lighten[data-v-b5b6e9bb] {
   background: rgba(var(--v-theme-surface-variant), 0.02);
 }
-.stats-grid[data-v-97c0f367] {
+.stats-grid[data-v-b5b6e9bb] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
