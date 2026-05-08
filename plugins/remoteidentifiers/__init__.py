@@ -24,7 +24,7 @@ class RemoteIdentifiers(_PluginBase):
     # 插件图标
     plugin_icon = "words.png"
     # 插件版本
-    plugin_version = "2.4"
+    plugin_version = "2.4.1"
     # 插件作者
     plugin_author = "honue"
     # 作者主页
@@ -272,8 +272,6 @@ class RemoteIdentifiers(_PluginBase):
                                             'type': 'success',
                                             'variant': 'tonal',
                                             'text': '可自己创建分享地址（支持Github及Etherpad），Github需要raw的源文件地址，文件格式与系统中配置格式一致即可。'
-                                                    '以下为官方托管的共享识别词，开放给大家共同维护，但由于经常有人捣乱，且体量越来越大影响运行效率，'
-                                                    '【建议仅供分享和参考】，不在插件中引用：https://movie-pilot.org/etherpad/p/MoviePilot_TV_Words、https://movie-pilot.org/etherpad/p/MoviePilot_Anime_Words'
                                         }
                                     }
                                 ]
