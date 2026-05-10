@@ -1411,6 +1411,10 @@ AI 识别增强结果：
             return
         guess = result.get("guess") or {}
         if isinstance(event_data, dict):
+            if event_data.get("source_plugin"):
+                if self._debug:
+                    logger.info(f"[AI识别增强] 已有插件处理识别结果，跳过覆盖: {event_data.get('source_plugin')}")
+                return
             event_data["name"] = guess.get("name", "")
             event_data["year"] = guess.get("year", "")
             event_data["season"] = guess.get("season", 0)
