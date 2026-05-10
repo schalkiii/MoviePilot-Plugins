@@ -2157,7 +2157,7 @@ class AgentResourceOfficer(_PluginBase):
         elif cookie_state.get("configured"):
             p115_ready = "已配置但不是扫码会话"
         else:
-            p115_ready = "复用 115 助手客户端"
+            p115_ready = "未配置扫码会话，尝试复用 P115StrmHelper"
         hdhive_summary = self._build_hdhive_page_summary()
         feishu_health = self._ensure_feishu_channel().health()
         feishu_state = "已启用" if feishu_health.get("enabled") else "未启用"
@@ -2252,6 +2252,9 @@ class AgentResourceOfficer(_PluginBase):
                                             f"默认目录：{self._p115_default_path}",
                                             f"登录方式：{p115_ready}",
                                             f"扫码客户端：{self._p115_client_type_title(self._p115_client_type)}",
+                                            "智能体命令：115登录 → 检查115登录",
+                                            "复用顺序：插件扫码会话 > P115StrmHelper",
+                                            "不复用：MoviePilot 主程序 115 登录态",
                                         ],
                                         "success" if p115_health_ok else "error",
                                     )
@@ -2968,7 +2971,7 @@ class AgentResourceOfficer(_PluginBase):
                                         "props": {
                                             "type": "info",
                                             "variant": "tonal",
-                                            "text": "115 建议走扫码会话，不建议填网页版 Cookie。插件支持 /p115/qrcode 和 /p115/qrcode/check 两步扫码登录；手填 Cookie 仅作为高级兜底。",
+                                            "text": "115 登录用法：下面的扫码会话 Cookie 可以不填；不填写时，插件会先尝试复用 P115StrmHelper 的已登录客户端。如果没有安装 P115StrmHelper，或复用不可用，就在外部智能体或飞书里发送「115登录」，智能体会返回二维码图片；用 115 App 扫码确认后，再发送「检查115登录」。插件暂不复用 MoviePilot 主程序 115 登录态。高级用户才需要手填 UID/CID/SEID 客户端 Cookie，普通网页版 Cookie 不建议填写。",
                                         },
                                     }
                                 ],

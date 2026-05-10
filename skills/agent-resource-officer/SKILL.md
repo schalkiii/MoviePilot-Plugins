@@ -80,6 +80,7 @@ Core rules:
 - `1详情` and similar variants must preserve detail intent. Never collapse them into `1` or `选择 1`.
 - Before confirming PT download execution, make sure the connected MoviePilot is the real download instance, not a cloud-drive/STRM-only instance.
 - If the user says `校准影视技能`, run `python3 scripts/aro_request.py calibrate` or `python3 scripts/aro_request.py route "校准影视技能"` first, apply the returned hard rules to the current session, then reply only `影视技能已校准。`.
+- If the user says `115登录`, route it through the helper and preserve the helper output exactly. When the helper prints a QR image path or Markdown image such as `![115扫码二维码](...)`, show it to the user; do not summarize it into plain text or drop the image/path. After the user scans, tell them to reply `检查115登录`.
 - For explicit title searches such as `MP 搜索 罪无可逃`, the first and only initial action is helper `route "<原话>" --session <session>`. Do not pre-call TMDB, MCP search, raw MoviePilot API, or torrent search before that helper route.
 
 Environment overrides:
