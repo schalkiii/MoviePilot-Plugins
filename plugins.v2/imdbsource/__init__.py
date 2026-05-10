@@ -1,3 +1,4 @@
+import inspect
 import re
 import urllib.parse
 from datetime import datetime
@@ -34,7 +35,7 @@ class ImdbSource(_PluginBase):
     # 插件图标
     plugin_icon = "IMDb_IOS-OSX_App.png"
     # 插件版本
-    plugin_version = "1.6.7"
+    plugin_version = "1.6.8"
     # 插件作者
     plugin_author = "wumode"
     # 作者主页
@@ -64,42 +65,65 @@ class ImdbSource(_PluginBase):
     _original_async_method: Optional[Callable[..., Coroutine[Any, Any, Optional[MediaInfo]]]] = None
     _staff_picks_cache: Optional[StaffPickApiResponse] = None
 
+    @staticmethod
+    def _extract_method_kwargs(method: Optional[Callable], chain_self, args: tuple, kwargs: dict) -> dict:
+        if not method:
+            return dict(kwargs)
+
+        try:
+            signature = inspect.signature(method)
+            bound = signature.bind_partial(chain_self, *args, **kwargs)
+            arguments = dict(bound.arguments)
+            first_param = next(iter(signature.parameters), None)
+            if first_param:
+                arguments.pop(first_param, None)
+            return arguments
+        except TypeError:
+            arguments = dict(kwargs)
+            if args:
+                arguments.setdefault("meta", args[0])
+            if len(args) > 1:
+                arguments.setdefault("mtype", args[1])
+            return arguments
+
     def init_plugin(self, config: dict = None):
 
         plugin_instance: ImdbSource = self
 
-        def patched_recognize_media(chain_self, meta: MetaBase = None,
-                                    mtype: Optional[MediaType] = None,
-                                    tmdbid: Optional[int] = None,
-                                    doubanid: Optional[str] = None,
-                                    bangumiid: Optional[int] = None,
-                                    episode_group: Optional[str] = None,
-                                    cache: bool = True):
+        def patched_recognize_media(chain_self, *args, **kwargs):
             # 调用原始方法
             if not plugin_instance._original_method:
                 return None
-            result = plugin_instance._original_method(chain_self, meta, mtype, tmdbid, doubanid, bangumiid,
-                                                      episode_group, cache)
+            result = plugin_instance._original_method(chain_self, *args, **kwargs)
             if result is None and ImdbSource._enabled and ImdbSource._recognize_media:
                 logger.info(f"通过插件 {ImdbSource.plugin_name} 执行：recognize_media ...")
-                return plugin_instance.recognize_media(meta, mtype)
+                plugin_kwargs = plugin_instance._extract_method_kwargs(
+                    plugin_instance._original_method,
+                    chain_self,
+                    args,
+                    kwargs,
+                )
+                meta = plugin_kwargs.pop("meta", None)
+                mtype = plugin_kwargs.pop("mtype", None)
+                return plugin_instance.recognize_media(meta=meta, mtype=mtype, **plugin_kwargs)
             return result
 
-        async def patched_async_recognize_media(chain_self, meta: MetaBase = None,
-                                                mtype: Optional[MediaType] = None,
-                                                tmdbid: Optional[int] = None,
-                                                doubanid: Optional[str] = None,
-                                                bangumiid: Optional[int] = None,
-                                                episode_group: Optional[str] = None,
-                                                cache: bool = True):
+        async def patched_async_recognize_media(chain_self, *args, **kwargs):
             # 调用原始方法
             if not plugin_instance._original_async_method:
                 return None
-            result = await plugin_instance._original_async_method(chain_self, meta, mtype, tmdbid, doubanid, bangumiid,
-                                                                  episode_group, cache)
+            result = await plugin_instance._original_async_method(chain_self, *args, **kwargs)
             if result is None and ImdbSource._enabled and ImdbSource._recognize_media:
                 logger.info(f"通过插件 {ImdbSource.plugin_name} 执行：async_recognize_media ...")
-                return await plugin_instance.async_recognize_media(meta, mtype)
+                plugin_kwargs = plugin_instance._extract_method_kwargs(
+                    plugin_instance._original_async_method,
+                    chain_self,
+                    args,
+                    kwargs,
+                )
+                meta = plugin_kwargs.pop("meta", None)
+                mtype = plugin_kwargs.pop("mtype", None)
+                return await plugin_instance.async_recognize_media(meta=meta, mtype=mtype, **plugin_kwargs)
             return result
 
         # 给 patch 函数加唯一标记
