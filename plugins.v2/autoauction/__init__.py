@@ -17,8 +17,8 @@ from app.utils.http import RequestUtils
 
 
 class AutoAuction(_PluginBase):
-    plugin_name = "朱雀拍卖行自动上架"
-    plugin_desc = "自动上架灵石或上传到拍卖行"
+    plugin_name = "朱雀交易行自动上架"
+    plugin_desc = "自动上架灵石或上传到交易行"
     plugin_icon = "auction.png"
     plugin_version = "1.0.0"
     plugin_author = "no_reply"
