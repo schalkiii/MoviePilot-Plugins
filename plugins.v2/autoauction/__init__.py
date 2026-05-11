@@ -17,11 +17,11 @@ from app.utils.http import RequestUtils
 
 class AutoAuction(_PluginBase):
     plugin_name = "朱雀拍卖行自动上架"
-    plugin_desc = "自动上架商品到拍卖行"
+    plugin_desc = "自动上架灵石或上传到拍卖行"
     plugin_icon = "auction.png"
     plugin_version = "1.0.0"
-    plugin_author = "alvyo"
-    author_url = "https://github.com/alvyo"
+    plugin_author = "no_reply"
+    author_url = "https://github.com/jxxghp/MoviePilot-Plugins"
     plugin_config_prefix = "autoauction_"
     plugin_order = 50
     auth_level = 2
