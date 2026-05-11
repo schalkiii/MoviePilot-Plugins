@@ -1,4 +1,5 @@
 import json
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple, Optional
@@ -52,7 +53,8 @@ class AutoAuction(_PluginBase):
             self._tasks = []
         elif isinstance(tasks_json, str):
             try:
-                self._tasks = json.loads(tasks_json) if tasks_json.strip() else []
+                parsed = json.loads(tasks_json) if tasks_json.strip() else []
+                self._tasks = parsed if isinstance(parsed, list) else []
             except json.JSONDecodeError:
                 logger.error(f"任务配置JSON解析失败: {tasks_json}")
                 self._tasks = []
@@ -354,7 +356,7 @@ class AutoAuction(_PluginBase):
 
             if res and res.status_code == 200:
                 html = res.text
-                import re
+                
                 patterns = [
                     r'x-csrf-token["\']?\s*[:=]\s*["\']([^"\']+)["\']',
                     r'<meta[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
@@ -370,7 +372,7 @@ class AutoAuction(_PluginBase):
             logger.error(f"获取CSRF Token异常: {str(e)}")
             return None
 
-    def get_listings(self, page: int = 1, size: int = 20) -> Dict[str, Any]:
+    def get_listings(self, page: int = 1, size: int = 20, type: int = 2) -> Dict[str, Any]:
         cookie = self._get_zhuque_cookie()
 
         if not cookie:
@@ -380,7 +382,7 @@ class AutoAuction(_PluginBase):
             res = RequestUtils(
                 cookies=cookie,
                 headers={"User-Agent": "Mozilla/5.0"}
-            ).get_res(url=f"{self.LIST_API}?page={page}&size={size}&type=2&onlyUnsold=true&onlyRelated=false")
+            ).get_res(url=f"{self.LIST_API}?page={page}&size={size}&type={type}&onlyUnsold=true&onlyRelated=false")
 
             if res and res.status_code == 200:
                 data = res.json()
@@ -464,7 +466,7 @@ class AutoAuction(_PluginBase):
 
             if result.get("success"):
                 transaction_id = result.get("data", {}).get("transactionId")
-                record_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                record_time = datetime.now(tz=pytz.timezone(settings.TZ)).strftime("%Y-%m-%d %H:%M:%S")
                 self._history.insert(0, {
                     "upload": task.get("upload"),
                     "bonus": task.get("bonus"),
@@ -488,7 +490,7 @@ class AutoAuction(_PluginBase):
         if self._notify_enabled and success_records:
             try:
                 type_text = "出售上传" if self._tasks[0].get("type", 2) == 2 else "出售灵石" if self._tasks[0].get("type", 2) == 1 else ""
-                summary_date = datetime.now().strftime("%Y-%m-%d")
+                summary_date = datetime.now(tz=pytz.timezone(settings.TZ)).strftime("%Y-%m-%d")
                 text_lines = [f"{summary_date}  {type_text}"]
                 for record in success_records:
                     text_lines.append(record)
