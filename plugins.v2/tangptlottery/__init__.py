@@ -30,7 +30,7 @@ class TangptLottery(_PluginBase):
     author_url = ""
     plugin_config_prefix = "tangptlottery_"
     plugin_order = 30
-    auth_level = 2
+    auth_level = 1
 
     DRAW_URL = "https://www.tangpt.top/web/omnibot/lottery/draw"
     LOTTERY_PAGE_URL = "https://www.tangpt.top/omnibot_lottery.php"
