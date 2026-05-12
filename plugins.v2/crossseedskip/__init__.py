@@ -343,7 +343,16 @@ class CrossSeedSkip(_PluginBase):
         return []
 
     def get_api(self) -> List[Dict[str, Any]]:
-        return []
+        return [
+            {
+                "path": "/select_all_sites",
+                "endpoint": self.select_all_sites_api,
+                "methods": ["GET"],
+                "auth": "bear",
+                "summary": "获取全部站点ID",
+                "description": "返回所有可选站点的ID列表，用于前端一键全选。"
+            }
+        ]
 
     def get_service(self) -> List[Dict[str, Any]]:
         if self.get_state():
@@ -433,7 +442,8 @@ class CrossSeedSkip(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 12
+                                    'cols': 12,
+                                    'md': 10
                                 },
                                 'content': [
                                     {
@@ -444,6 +454,31 @@ class CrossSeedSkip(_PluginBase):
                                             'model': 'sites',
                                             'label': '辅种站点',
                                             'items': site_options
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 2,
+                                    'class': 'd-flex align-center'
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VBtn',
+                                        'props': {
+                                            'color': 'primary',
+                                            'variant': 'tonal',
+                                            'text': '全选站点'
+                                        },
+                                        'events': {
+                                            'click': {
+                                                'api': 'plugin/CrossSeedSkip/select_all_sites',
+                                                'method': 'get',
+                                                'state': 'sites'
+                                            }
                                         }
                                     }
                                 ]
@@ -1100,6 +1135,16 @@ class CrossSeedSkip(_PluginBase):
                 self._scheduler = None
         except Exception as e:
             logger.error(str(e))
+
+    def select_all_sites_api(self):
+        try:
+            customSites = self.__custom_sites()
+            all_site_ids = ([site.id for site in SiteOper().list_order_by_pri()]
+                            + [site.get("id") for site in customSites])
+            return {"success": True, "site_ids": all_site_ids}
+        except Exception as e:
+            logger.error(f"获取全选站点列表失败: {e}")
+            return {"success": False, "site_ids": []}
 
     def __custom_sites(self) -> List[Any]:
         custom_sites = []
