@@ -35,6 +35,7 @@ class AutoAuction(_PluginBase):
     _csrf_token: str = ""
     _notify_enabled: bool = True
     _scheduler: Optional[BackgroundScheduler] = None
+    _is_running: bool = False
 
     ZHUQUE_DOMAIN = "zhuque.in"
     LIST_API = "https://zhuque.in/api/transaction/list"
@@ -452,56 +453,63 @@ class AutoAuction(_PluginBase):
             return {"success": False, "message": f"上架异常: {str(e)}"}
 
     def run_all_tasks(self) -> Dict[str, Any]:
-        logger.info(f"开始执行上架任务，共 {len(self._tasks)} 个配置")
-        results = []
-        success_records = []
+        if self._is_running:
+            logger.warn("上架任务正在执行中，跳过本次调用")
+            return {"success": False, "message": "任务正在执行中"}
+        
+        self._is_running = True
+        try:
+            logger.info(f"开始执行上架任务，共 {len(self._tasks)} 个配置")
+            results = []
+            success_records = []
 
-        for idx, task in enumerate(self._tasks):
-            result = self.create_listing(
-                bonus=task.get("bonus"),
-                unit=task.get("unit"),
-                upload=task.get("upload"),
-                type=task.get("type", 2)
-            )
-
-            if result.get("success"):
-                transaction_id = result.get("data", {}).get("transactionId")
-                record_time = datetime.now(tz=pytz.timezone(settings.TZ)).strftime("%Y-%m-%d %H:%M:%S")
-                self._history.insert(0, {
-                    "upload": task.get("upload"),
-                    "bonus": task.get("bonus"),
-                    "unit": task.get("unit"),
-                    "type": task.get("type", 2),
-                    "time": record_time,
-                    "transactionId": transaction_id
-                })
-                if len(self._history) > 50:
-                    self._history = self._history[:50]
-                success_records.append(f"上传 {task.get('upload')} {task.get('unit')} | 灵石 {task.get('bonus')} | 上架时间: {record_time[11:]}")
-                results.append({"index": idx + 1, "success": True})
-                logger.info(f"配置 {idx + 1} 上架成功")
-            else:
-                logger.error(f"配置 {idx + 1} 上架失败: {result.get('message')}")
-                results.append({"index": idx + 1, "success": False, "error": result.get('message')})
-
-        if self._history:
-            self.save_data("history", self._history)
-
-        if self._notify_enabled and success_records:
-            try:
-                type_text = "出售上传" if self._tasks[0].get("type", 2) == 2 else "出售灵石" if self._tasks[0].get("type", 2) == 1 else ""
-                summary_date = datetime.now(tz=pytz.timezone(settings.TZ)).strftime("%Y-%m-%d")
-                text_lines = [f"{summary_date}  {type_text}"]
-                for record in success_records:
-                    text_lines.append(record)
-                text = "\n".join(text_lines)
-                self.post_message(
-                    mtype=NotificationType.Plugin,
-                    title="拍卖行上架",
-                    text=text
+            for idx, task in enumerate(self._tasks):
+                result = self.create_listing(
+                    bonus=task.get("bonus"),
+                    unit=task.get("unit"),
+                    upload=task.get("upload"),
+                    type=task.get("type", 2)
                 )
-            except Exception as e:
-                logger.error(f"发送通知异常: {str(e)}")
 
-        return {"success": True, "results": results}
+                if result.get("success"):
+                    transaction_id = result.get("data", {}).get("transactionId")
+                    record_time = datetime.now(tz=pytz.timezone(settings.TZ)).strftime("%Y-%m-%d %H:%M:%S")
+                    self._history.insert(0, {
+                        "upload": task.get("upload"),
+                        "bonus": task.get("bonus"),
+                        "unit": task.get("unit"),
+                        "type": task.get("type", 2),
+                        "time": record_time,
+                        "transactionId": transaction_id
+                    })
+                    if len(self._history) > 50:
+                        self._history = self._history[:50]
+                    success_records.append(f"上传 {task.get('upload')} {task.get('unit')} | 灵石 {task.get('bonus')} | 上架时间: {record_time[11:]}")
+                    results.append({"index": idx + 1, "success": True})
+                    logger.info(f"配置 {idx + 1} 上架成功")
+                else:
+                    logger.error(f"配置 {idx + 1} 上架失败: {result.get('message')}")
+                    results.append({"index": idx + 1, "success": False, "error": result.get('message')})
 
+            if self._history:
+                self.save_data("history", self._history)
+
+            if self._notify_enabled and success_records:
+                try:
+                    type_text = "出售上传" if self._tasks[0].get("type", 2) == 2 else "出售灵石" if self._tasks[0].get("type", 2) == 1 else ""
+                    summary_date = datetime.now(tz=pytz.timezone(settings.TZ)).strftime("%Y-%m-%d")
+                    text_lines = [f"{summary_date}  {type_text}"]
+                    for record in success_records:
+                        text_lines.append(record)
+                    text = "\n".join(text_lines)
+                    self.post_message(
+                        mtype=NotificationType.Plugin,
+                        title="拍卖行上架",
+                        text=text
+                    )
+                except Exception as e:
+                    logger.error(f"发送通知异常: {str(e)}")
+
+            return {"success": True, "results": results}
+        finally:
+            self._is_running = False
