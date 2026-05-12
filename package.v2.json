@@ -6,7 +6,7 @@
     "version": "3.0.3",
     "icon": "qingwa.png",
     "author": "Schalkiii",
-    "level": 1,
+    "level": 2,
     "history": {
       "v3.0.3": "添加跳过哈希校验选项，tag改为青蛙辅种",
       "v3.0.2": "更新依赖库",
@@ -21,7 +21,7 @@
     "version": "1.0.0",
     "icon": "Moviepilot_A.png",
     "author": "",
-    "level": 1,
+    "level": 2,
     "history": {
       "v1.0.0": "初始版本，支持躺平站点自动抽奖"
     }

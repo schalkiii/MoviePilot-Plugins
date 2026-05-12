@@ -173,7 +173,7 @@ class CrossSeedSkip(_PluginBase):
     author_url = "https://qingwapt.com/"
     plugin_config_prefix = "crossseedskip_"
     plugin_order = 17
-    auth_level = 1
+    auth_level = 2
 
     _scheduler = None
     cross_helper = None
