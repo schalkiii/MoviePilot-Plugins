@@ -179,7 +179,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1"
+    plugin_version = "3.0.3"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -206,9 +206,10 @@ class CrossSeed(_PluginBase):
     _nolabels = None
     _nopaths = None
     _clearcache = False
+    _skipverify = False
     # 退出事件
     _event = Event()
-    _torrent_tags = ["已整理", "辅种"]
+    _torrent_tags = ["青蛙辅种"]
     # 待校全种子hash清单
     _recheck_torrents = {}
     _is_recheck_running = False
@@ -245,6 +246,7 @@ class CrossSeed(_PluginBase):
             self._nolabels = config.get("nolabels")
             self._nopaths = config.get("nopaths")
             self._clearcache = config.get("clearcache")
+            self._skipverify = config.get("skipverify") or False
             self._permanent_error_caches = [] if self._clearcache else config.get("permanent_error_caches") or []
             self._error_caches = [] if self._clearcache else config.get("error_caches") or []
             self._success_caches = [] if self._clearcache else config.get("success_caches") or []
@@ -669,6 +671,23 @@ class CrossSeed(_PluginBase):
                                         }
                                     }
                                 ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'skipverify',
+                                            'label': '跳过哈希校验',
+                                            'hint': '辅种添加种子时跳过哈希校验，直接开始做种'
+                                        }
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -726,6 +745,7 @@ class CrossSeed(_PluginBase):
             "onlyonce": False,
             "notify": False,
             "clearcache": False,
+            "skipverify": False,
             "cron": "",
             "token": "",
             "downloaders": [],
@@ -743,6 +763,7 @@ class CrossSeed(_PluginBase):
             "enabled": self._enabled,
             "onlyonce": self._onlyonce,
             "clearcache": self._clearcache,
+            "skipverify": self._skipverify,
             "cron": self._cron,
             "token": self._token,
             "downloaders": self._downloaders,
@@ -1051,7 +1072,7 @@ class CrossSeed(_PluginBase):
             state = service.instance.add_torrent(content=content,
                                                  download_dir=save_path,
                                                  is_paused=True,
-                                                 is_skip_checking=True,
+                                                 is_skip_checking=self._skipverify,
                                                  tag=["青蛙辅种", tag])
             if not state:
                 return None
