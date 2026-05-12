@@ -1368,5 +1368,17 @@
     "history": {
       "0.1.0": "首个轻量版本，支持夸克分享解析、目录自动创建、转存执行，以及智能体和飞书调用。"
     }
+  },
+  "CrossSeedSkip": {
+    "name": "青蛙辅种助手跳验版",
+    "description": "参考ReseedPuppy和IYUU辅种插件实现自动辅种，支持跳过哈希校验",
+    "labels": "做种",
+    "version": "2.4",
+    "icon": "qingwa.png",
+    "author": "Schalkiii",
+    "level": 1,
+    "history": {
+      "v2.4": "支持qbittorrent 5，添加跳过哈希校验选项"
+    }
   }
 }
