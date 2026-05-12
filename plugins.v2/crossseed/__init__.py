@@ -173,15 +173,14 @@ class CrossSeedHelper(object):
 
 class CrossSeed(_PluginBase):
     # 插件名称
-    plugin_name = "青蛙辅种助手"
-    # 插件描述
-    plugin_desc = "参考ReseedPuppy和IYUU辅种插件实现自动辅种，支持站点：青蛙、AGSVPT、麒麟、UBits、聆音、憨憨等。"
+    plugin_name = "青蛙辅种助手跳验版"
+    plugin_desc = "参考ReseedPuppy和IYUU辅种插件实现自动辅种，支持跳过哈希校验"
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
     plugin_version = "3.0.3"
     # 插件作者
-    plugin_author = "233@qingwa"
+    plugin_author = "Schalkiii"
     # 作者主页
     author_url = "https://qingwapt.com/"
     # 插件配置项ID前缀
@@ -381,10 +380,10 @@ class CrossSeed(_PluginBase):
 
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
-        pass
+        return []
 
     def get_api(self) -> List[Dict[str, Any]]:
-        pass
+        return []
 
     def get_service(self) -> List[Dict[str, Any]]:
         """
@@ -1059,8 +1058,7 @@ class CrossSeed(_PluginBase):
 
         logger.info(f"下载器 {service.name} 辅种完成")
 
-    @staticmethod
-    def __download(service: ServiceInfo, content: Union[bytes, str],
+    def __download(self, service: ServiceInfo, content: Union[bytes, str],
                    save_path: str) -> Optional[str]:
         """
         添加下载任务
@@ -1189,7 +1187,7 @@ class CrossSeed(_PluginBase):
         try:
             return torrent.get("hash") if dl_type == "qbittorrent" else torrent.hashString
         except Exception as e:
-            print(str(e))
+            logger.error(str(e))
             return ""
 
     @staticmethod
@@ -1201,7 +1199,7 @@ class CrossSeed(_PluginBase):
             return [str(tag).strip() for tag in torrent.get("tags").split(',')] \
                 if dl_type == "qbittorrent" else torrent.labels or []
         except Exception as e:
-            print(str(e))
+            logger.error(str(e))
             return []
 
     @staticmethod
@@ -1213,7 +1211,7 @@ class CrossSeed(_PluginBase):
             return torrent.get("state") in ["pausedUP", "stoppedUP"] if dl_type == "qbittorrent" \
                 else (torrent.status.stopped and torrent.percent_done == 1)
         except Exception as e:
-            print(str(e))
+            logger.error(str(e))
             return False
 
     @staticmethod
@@ -1224,7 +1222,7 @@ class CrossSeed(_PluginBase):
         try:
             return torrent.get("save_path") if dl_type == "qbittorrent" else torrent.download_dir
         except Exception as e:
-            print(str(e))
+            logger.error(str(e))
             return ""
 
     def stop_service(self):
@@ -1240,7 +1238,7 @@ class CrossSeed(_PluginBase):
                     self._event.clear()
                 self._scheduler = None
         except Exception as e:
-            print(str(e))
+            logger.error(str(e))
 
     def __custom_sites(self) -> List[Any]:
         custom_sites = []
