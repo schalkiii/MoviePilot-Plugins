@@ -34,7 +34,7 @@ class TangptLottery(_PluginBase):
 
     DRAW_URL = "https://www.tangpt.top/web/omnibot/lottery/draw"
     LOTTERY_PAGE_URL = "https://www.tangpt.top/omnibot_lottery.php"
-    SITE_DOMAIN = "tangpt.top"
+    SITE_DOMAIN = "www.tangpt.top"
     MAX_HISTORY = 30
 
     _enabled = False
