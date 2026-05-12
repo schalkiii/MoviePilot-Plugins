@@ -28,9 +28,6 @@ from app.utils.timer import TimerUtils
 
 
 class CSSiteConfig(object):
-    """
-    站点辅种配置类
-    """
 
     def __init__(
             self,
@@ -102,7 +99,6 @@ class TorInfo:
             info_hash = hashlib.sha1(bencode(info)).hexdigest()
             pieces_hash = hashlib.sha1(pieces).hexdigest()
             local_tor = TorInfo(info_hash=info_hash, pieces_hash=pieces_hash)
-            # 从种子中获取 announce, qb可能存在获取不到的情况，会存在于fastresume文件中
             if "announce" in torrent:
                 local_tor.torrent_announce = torrent["announce"]
             return local_tor, None
@@ -140,9 +136,6 @@ class CrossSeedHelper(object):
             site: CSSiteConfig,
             pieces_hash_set: List[str]
     ) -> Tuple[Optional[List[TorInfo]], Optional[str]]:
-        """
-        返回pieces_hash对应的种子信息，包括站点id,pieces_hash,种子id
-        """
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -171,29 +164,19 @@ class CrossSeedHelper(object):
         return remote_torrent_infos, None
 
 
-class CrossSeed(_PluginBase):
-    # 插件名称
+class CrossSeedSkip(_PluginBase):
     plugin_name = "青蛙辅种助手跳验版"
     plugin_desc = "参考ReseedPuppy和IYUU辅种插件实现自动辅种，支持跳过哈希校验"
-    # 插件图标
     plugin_icon = "qingwa.png"
-    # 插件版本
     plugin_version = "3.0.3"
-    # 插件作者
     plugin_author = "Schalkiii"
-    # 作者主页
     author_url = "https://qingwapt.com/"
-    # 插件配置项ID前缀
-    plugin_config_prefix = "cross_seed_"
-    # 加载顺序
+    plugin_config_prefix = "crossseedskip_"
     plugin_order = 17
-    # 可使用的用户级别
     auth_level = 2
 
-    # 私有属性
     _scheduler = None
     cross_helper = None
-    # 开关
     _enabled = False
     _cron = None
     _onlyonce = False
@@ -206,21 +189,15 @@ class CrossSeed(_PluginBase):
     _nopaths = None
     _clearcache = False
     _skipverify = False
-    # 退出事件
     _event = Event()
     _torrent_tags = ["青蛙辅种"]
-    # 待校全种子hash清单
     _recheck_torrents = {}
     _is_recheck_running = False
-    # 辅种缓存，出错的种子不再重复辅种，可清除
     _error_caches = []
-    # 辅种缓存，辅种成功的种子，可清除
     _success_caches = []
-    # 辅种缓存，出错的种子不再重复辅种，且无法清除。种子被删除404等情况
     _permanent_error_caches = []
     _torrentpaths = []
     _site_cs_infos = []
-    # 辅种计数
     total = 0
     realtotal = 0
     success = 0
@@ -230,16 +207,15 @@ class CrossSeed(_PluginBase):
 
     def init_plugin(self, config: dict = None):
 
-        # 读取配置
         if config:
             self._enabled = config.get("enabled")
             self._onlyonce = config.get("onlyonce")
             self._cron = config.get("cron")
-            self._token = config.get("token")  # passkey格式  青蛙:xxxxxx,站点名称:xxxxxxx
+            self._token = config.get("token") or ""
 
-            self._downloaders = config.get("downloaders")
-            self._torrentpath = config.get("torrentpath")  # 种子路径和下载器对应  /qb,/tr
-            self._torrentpaths = self._torrentpath.strip().split(",")
+            self._downloaders = config.get("downloaders") or []
+            self._torrentpath = config.get("torrentpath") or ""
+            self._torrentpaths = self._torrentpath.strip().split(",") if self._torrentpath.strip() else []
             self._sites = config.get("sites") or []
             self._notify = config.get("notify")
             self._nolabels = config.get("nolabels")
@@ -250,14 +226,12 @@ class CrossSeed(_PluginBase):
             self._error_caches = [] if self._clearcache else config.get("error_caches") or []
             self._success_caches = [] if self._clearcache else config.get("success_caches") or []
 
-            # 过滤掉已删除的站点
             inner_site_list = SiteOper().list_order_by_pri()
             all_sites = [(site.id, site.name) for site in inner_site_list] + [
                 (site.get("id"), site.get("name")) for site in self.__custom_sites()
             ]
             self._sites = [site_id for site_id, site_name in all_sites if site_id in self._sites]
 
-            # 整理所有可用内部站点信息
             all_site_cs_info_map: dict[str, CSSiteConfig] = dict()
             for site in inner_site_list:
                 if site.is_active:
@@ -281,7 +255,6 @@ class CrossSeed(_PluginBase):
             self._sites = [site.id for site in all_site_cs_info_map.values() if site.id in self._sites]
             site_names = [site.name for site in all_site_cs_info_map.values() if site.id in self._sites]
 
-            # 整理passkey映射关系
             site_name_key_map = dict()
             site_name_gap_map = dict()
             for site_key in self._token.strip().split("\n"):
@@ -297,9 +270,7 @@ class CrossSeed(_PluginBase):
                             f"站点{site_name}配置的查询请求间隔时间不为整数，不能生效, 请修改 {site_key_arr[2]}"
                         )
 
-            # 只给选中的站点补全站点配置
             self._site_cs_infos: List[CSSiteConfig] = []
-            # 根据配置来补充passkey
             for site_name in site_names:
                 site_key = site_name_key_map.get(site_name)
                 if not site_key:
@@ -308,7 +279,6 @@ class CrossSeed(_PluginBase):
                     continue
                 site_cs_info = all_site_cs_info_map.get(site_name)
                 site_cs_info.passkey = site_key
-                # 追加设置的请求间隔时间
                 site_query_gap = site_name_gap_map.get(site_name)
                 if site_query_gap:
                     site_cs_info.query_gap = site_query_gap
@@ -316,10 +286,8 @@ class CrossSeed(_PluginBase):
 
             self.__update_config()
 
-        # 停止现有任务
         self.stop_service()
 
-        # 启动定时任务 & 立即运行一次
         if self.get_state() or self._onlyonce:
             self.cross_helper = CrossSeedHelper()
             self._scheduler = BackgroundScheduler(timezone=settings.TZ)
@@ -331,28 +299,20 @@ class CrossSeed(_PluginBase):
                                             tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3)
                                         )
 
-                # 关闭一次性开关
                 self._onlyonce = False
                 if self._scheduler.get_jobs():
-                    # 追加种子校验服务
                     self._scheduler.add_job(self.check_recheck, 'interval', minutes=3)
-                    # 启动服务
                     self._scheduler.print_jobs()
                     self._scheduler.start()
 
             if self._clearcache:
-                # 关闭清除缓存开关
                 self._clearcache = False
 
             if self._clearcache or self._onlyonce:
-                # 保存配置
                 self.__update_config()
 
     @property
     def service_infos(self) -> Optional[Dict[str, ServiceInfo]]:
-        """
-        服务信息
-        """
         if not self._downloaders:
             logger.warning("尚未配置下载器，请检查配置")
             return None
@@ -386,28 +346,16 @@ class CrossSeed(_PluginBase):
         return []
 
     def get_service(self) -> List[Dict[str, Any]]:
-        """
-        注册插件公共服务
-        [{
-            "id": "服务ID",
-            "name": "服务名称",
-            "trigger": "触发器：cron/interval/date/CronTrigger.from_crontab()",
-            "func": self.xxx,
-            "kwargs": {} # 定时器参数
-        }]
-        """
         if self.get_state():
-            # 如果开启了定时任务，并且参数齐全
             if self._cron:
                 return [{
-                    "id": "CrossSeed",
-                    "name": "青蛙辅种助手",
+                    "id": "CrossSeedSkip",
+                    "name": "青蛙辅种助手跳验版",
                     "trigger": CronTrigger.from_crontab(self._cron),
                     "func": self.auto_seed,
                     "kwargs": {}
                 }]
             else:
-                # 随机时间
                 triggers = TimerUtils.random_scheduler(num_executions=1,
                                                        begin_hour=2,
                                                        end_hour=7,
@@ -416,8 +364,8 @@ class CrossSeed(_PluginBase):
                 ret_jobs = []
                 for trigger in triggers:
                     ret_jobs.append({
-                        "id": f"CrossSeed|{trigger.hour}:{trigger.minute}",
-                        "name": "青蛙辅种助手",
+                        "id": f"CrossSeedSkip|{trigger.hour}:{trigger.minute}",
+                        "name": "青蛙辅种助手跳验版",
                         "trigger": "cron",
                         "func": self.auto_seed,
                         "kwargs": {
@@ -427,23 +375,16 @@ class CrossSeed(_PluginBase):
                     })
                 return ret_jobs
         elif self._enabled:
-            logger.warn("青蛙辅种助手插件参数不全，定时任务未正常启动")
+            logger.warn("青蛙辅种助手跳验版插件参数不全，定时任务未正常启动")
         return []
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
-        """
-        拼装插件配置页面，需要返回两块数据：1、页面配置；2、数据结构
-        """
-        # 站点的可选项（内置站点 + 自定义站点）
         customSites = self.__custom_sites()
 
-        # 站点的可选项
         site_options = ([{"title": site.name, "value": site.id}
                          for site in SiteOper().list_order_by_pri()]
                         + [{"title": site.get("name"), "value": site.get("id")}
                            for site in customSites])
-        # 测试版本，只支持青蛙
-        # site_options = [s for s in site_options if s["title"]=="青蛙"]
 
         return [
             {
@@ -777,27 +718,21 @@ class CrossSeed(_PluginBase):
         })
 
     def auto_seed(self):
-        """
-        开始辅种
-        """
         if not self.service_infos:
             return
 
         logger.info("开始辅种任务 ...")
 
-        # 计数器初始化
         self.total = 0
         self.realtotal = 0
         self.success = 0
         self.exist = 0
         self.fail = 0
         self.cached = 0
-        # 扫描下载器辅种
         for idx, service in enumerate(self.service_infos.values()):
             downloader = service.name
             downloader_obj = service.instance
             logger.info(f"开始扫描下载器 {downloader} ...")
-            # 获取下载器中已完成的种子
             torrents = downloader_obj.get_completed_torrents()
             if torrents:
                 logger.info(f"下载器 {downloader} 已完成种子数：{len(torrents)}")
@@ -809,19 +744,15 @@ class CrossSeed(_PluginBase):
                 if self._event.is_set():
                     logger.info("辅种服务停止")
                     return
-                    # 获取种子hash
                 hash_str = self.__get_hash(torrent, service.type)
                 if hash_str in self._error_caches or hash_str in self._permanent_error_caches:
                     logger.info(f"种子 {hash_str} 辅种失败且已缓存，跳过 ...")
                     continue
                 save_path = self.__get_save_path(torrent, service.type)
-                # 获取种子文件路径
                 torrent_path = Path(self._torrentpaths[idx]) / f"{hash_str}.torrent"
                 torrent_info = None
                 if not torrent_path.exists():
                     if False and service.type == "qbittorrent":
-                        # qb开启SQLite功能后将不再以hash命名的方式保存torrent文件
-                        # TODO 导出功能需要qb4.5.0以上版本才支持
                         logger.warn(f"QB种子文件不存在：{torrent_path} 尝试远程导出种子")
                         try:
                             torrent_data = torrent.export()
@@ -835,14 +766,12 @@ class CrossSeed(_PluginBase):
                         logger.error(f"种子文件不存在：{torrent_path}")
                         continue
 
-                # 读取种子文件具体信息
                 if not torrent_info:
                     torrent_info, err = self.cross_helper.get_local_torrent_info(torrent_path)
                     if not torrent_info:
                         logger.error(f"未能读取到种子文件具体信息：{torrent_path} {err}")
                         continue
 
-                # 用站点+pieces_hash记录该站点是否已经在该下载器中,需要从tracker补充站点名字
                 tracker_urls = set()
                 try:
                     if service.type == "qbittorrent":
@@ -855,22 +784,18 @@ class CrossSeed(_PluginBase):
                                 tracker_urls.add(torrent_info.torrent_announce)
                 except Exception as err:
                     logger.warn(f"尝试获取 {downloader} 的tracker出错 {err}")
-                # 根据tracker补充站点信息
                 for tracker in tracker_urls:
-                    # 优先通过passkey获取站点名
                     for site_config in self._site_cs_infos:
                         if site_config.passkey in tracker:
                             torrent_info.site_name = site_config.name
                             break
                     if not torrent_info.site_name:
-                        # 尝试通过域名获取站点信息
                         tracker_domain = StringUtils.get_url_domain(tracker)
                         site_info = SitesHelper().get_indexer(tracker_domain)
                         if site_info:
                             torrent_info.site_name = site_info.get("name")
 
                 if self._nopaths and save_path:
-                    # 过滤不需要转移的路径
                     nopath_skip = False
                     for nopath in self._nopaths.split('\n'):
                         if os.path.normpath(save_path).startswith(os.path.normpath(nopath)):
@@ -880,7 +805,6 @@ class CrossSeed(_PluginBase):
                     if nopath_skip:
                         continue
 
-                # 获取种子标签
                 torrent_labels = self.__get_label(torrent, service.type)
                 if torrent_labels and self._nolabels:
                     is_skip = False
@@ -898,18 +822,15 @@ class CrossSeed(_PluginBase):
                 })
             if hash_strs:
                 self.__seed_torrents(hash_strs=hash_strs, service=service)
-                # 触发校验检查
                 self.check_recheck()
             else:
                 logger.info("没有需要辅种的种子")
-        # 保存缓存
         self.__update_config()
-        # 发送消息
         if self._notify:
             if self.success or self.fail:
                 self.post_message(
                     mtype=NotificationType.SiteMessage,
-                    title="【青蛙辅种助手辅种任务完成】",
+                    title="【青蛙辅种助手跳验版辅种任务完成】",
                     text=f"服务器返回可辅种总数：{self.total}\n"
                          f"实际可辅种数：{self.realtotal}\n"
                          f"已存在：{self.exist}\n"
@@ -920,46 +841,35 @@ class CrossSeed(_PluginBase):
         logger.info("辅种任务执行完成")
 
     def check_recheck(self):
-        """
-        定时检查下载器中种子是否校验完成，校验完成且完整的自动开始辅种
-        """
         if not self._recheck_torrents:
             return
         if self._is_recheck_running:
             return
         self._is_recheck_running = True
         if not self.service_infos:
+            self._is_recheck_running = False
             return
         for service in self.service_infos.values():
-            # 需要检查的种子
             self.check_recheck_service(service)
         self._is_recheck_running = False
 
     def check_recheck_service(self, service: ServiceInfo):
-        """
-        检查指定下载器中种子是否校验完成，校验完成且完整的自动开始辅种
-        """
-        # 需要检查的种子
         downloader = service.name
         downloader_obj = service.instance
         recheck_torrents = self._recheck_torrents.get(downloader) or []
         if not recheck_torrents:
             return
         logger.info(f"开始检查下载器 {downloader} 的校验任务 ...")
-        # 获取下载器中的种子状态
         torrents, _ = downloader_obj.get_torrents(ids=recheck_torrents)
         if torrents:
             can_seeding_torrents = []
             for torrent in torrents:
-                # 获取种子hash
                 hash_str = self.__get_hash(torrent=torrent, dl_type=service.type)
                 if self.__can_seeding(torrent=torrent, dl_type=service.type):
                     can_seeding_torrents.append(hash_str)
             if can_seeding_torrents:
                 logger.info(f"共 {len(can_seeding_torrents)} 个任务校验完成，开始辅种 ...")
-                # 开始任务
                 downloader_obj.start_torrents(ids=can_seeding_torrents)
-                # 去除已经处理过的种子
                 self._recheck_torrents[downloader] = list(
                     set(recheck_torrents).difference(set(can_seeding_torrents)))
         elif torrents is None:
@@ -970,14 +880,10 @@ class CrossSeed(_PluginBase):
             self._recheck_torrents[downloader] = []
 
     def __seed_torrents(self, hash_strs: list, service: ServiceInfo):
-        """
-        执行所有种子的辅种
-        """
         if not hash_strs:
             return
         logger.info(f"下载器 {service.name} 开始查询辅种，种子总数量：{len(hash_strs)} ...")
 
-        # 每个Hash的保存目录
         save_paths = {}
         pieces_hash_set = set()
         site_pieces_hash_set = set()
@@ -991,11 +897,8 @@ class CrossSeed(_PluginBase):
         logger.info(f"去重后，总共需要辅种查询的种子数：{len(pieces_hash_set)}")
         pieces_hashes = list(pieces_hash_set)
 
-        # 分站点逐个批次辅种
-        # 逐个站点查询可辅种数据
         chunk_size = 100
         for site_config in self._site_cs_infos:
-            # 检查站点是否已经停用
             db_site = SiteOper().get(site_config.id)
             if db_site and not db_site.is_active:
                 logger.info(f"站点{site_config.name}已停用，跳过辅种")
@@ -1006,9 +909,7 @@ class CrossSeed(_PluginBase):
                 if self._event.is_set():
                     logger.info("辅种服务停止")
                     return
-                # 切片操作
                 chunk = pieces_hashes[i:i + chunk_size]
-                # 处理分组
                 chunk_tors, err_msg = self.cross_helper.get_target_torrent(site_config, chunk)
                 if not chunk_tors and err_msg:
                     logger.info(
@@ -1022,7 +923,6 @@ class CrossSeed(_PluginBase):
 
             logger.info(f"站点{site_config.name}返回可以辅种的种子总数为{len(remote_tors)}")
 
-            # 去除已经下载过的种子
             local_cnt = 0
             not_local_tors = []
             for tor_info in remote_tors:
@@ -1051,7 +951,6 @@ class CrossSeed(_PluginBase):
                 if tor_info.get_name_id_tag() in self._error_caches or tor_info.get_name_id_tag() in self._permanent_error_caches:
                     logger.info(f"种子 {tor_info.get_name_id_tag()} 辅种失败且已缓存，跳过 ...")
                     continue
-                # 添加任务
                 self.__download_torrent(tor=tor_info, site_config=site_config,
                                         service=service,
                                         save_path=save_paths.get(tor_info.pieces_hash))
@@ -1060,11 +959,7 @@ class CrossSeed(_PluginBase):
 
     def __download(self, service: ServiceInfo, content: Union[bytes, str],
                    save_path: str) -> Optional[str]:
-        """
-        添加下载任务
-        """
         if service.type == "qbittorrent":
-            # 生成随机Tag
             tag = StringUtils.generate_random_str(10)
 
             state = service.instance.add_torrent(content=content,
@@ -1075,14 +970,12 @@ class CrossSeed(_PluginBase):
             if not state:
                 return None
             else:
-                # 获取种子Hash
                 torrent_hash = service.instance.get_torrent_id_by_tag(tags=tag)
                 if not torrent_hash:
                     logger.error(f"{service.name} 下载任务添加成功，但获取任务信息失败！")
                     return None
             return torrent_hash
         elif service.type == "transmission":
-            # 添加任务
             torrent = service.instance.add_torrent(content=content,
                                                    download_dir=save_path,
                                                    is_paused=True,
@@ -1102,38 +995,27 @@ class CrossSeed(_PluginBase):
             service: ServiceInfo,
             save_path: str,
     ):
-        """
-        下载种子
-
-        """
         self.total += 1
         self.realtotal += 1
 
-        # 下载种子
         torrent_url = site_config.get_torrent_url(tor.torrent_id)
 
-        # 下载种子文件
         _, content, _, _, error_msg = TorrentHelper().download_torrent(
             url=torrent_url,
             cookie=site_config.cookie,
             ua=site_config.ua or settings.USER_AGENT,
             proxy=True if site_config.proxy else False)
 
-        # 兼容种子无法访问的情况
         if not content or (isinstance(content, bytes) and "你没有该权限".encode(encoding="utf-8") in content):
-            # 下载失败
             self.fail += 1
             self.cached += 1
-            # 加入失败缓存
             if error_msg and ('无法打开链接' in error_msg or '触发站点流控' in error_msg):
                 self._error_caches.append(tor.get_name_id_tag())
             else:
-                # 种子不存在的情况
                 self._permanent_error_caches.append(tor.get_name_id_tag())
             logger.error(f"下载种子文件失败：{tor.get_name_id_tag()}")
             return False
 
-        # 添加任务前查询校验一次，避免重复添加，导致暂停的任务被重新开始
         downloader_obj = service.instance
         tmp_tor_info, err_msg = TorInfo.from_data(content)
         if tmp_tor_info and tmp_tor_info.info_hash:
@@ -1146,16 +1028,13 @@ class CrossSeed(_PluginBase):
         else:
             logger.warn(f"获取下载种子的信息出错{err_msg},不能检查该种子是否已暂停")
 
-        # 添加下载，辅种任务默认暂停
         logger.info(f"添加下载任务：{tor.get_name_id_tag()} ...")
         download_id = self.__download(service=service,
                                       content=content,
                                       save_path=save_path)
         if not download_id:
-            # 下载失败
             self.fail += 1
             self.cached += 1
-            # 加入失败缓存
             self._error_caches.append(tor.get_name_id_tag())
             return False
         else:
@@ -1166,14 +1045,11 @@ class CrossSeed(_PluginBase):
                 self.__add_recheck_torrents(service, download_id)
             else:
                 self.__add_recheck_torrents(service, download_id)
-            # 下载成功
             logger.info(f"成功添加辅种下载，站点种子：{tor.get_name_id_tag()}")
-            # 成功也加入缓存，有一些改了路径校验不通过的，手动删除后，下一次又会辅上
             self._success_caches.append(tor.get_name_id_tag())
             return True
 
     def __add_recheck_torrents(self, service: ServiceInfo, download_id: str):
-        # 追加校验任务
         logger.info(f"添加校验检查任务：{download_id} ...")
         if not self._recheck_torrents.get(service.name):
             self._recheck_torrents[service.name] = []
@@ -1181,9 +1057,6 @@ class CrossSeed(_PluginBase):
 
     @staticmethod
     def __get_hash(torrent: Any, dl_type: str):
-        """
-        获取种子hash
-        """
         try:
             return torrent.get("hash") if dl_type == "qbittorrent" else torrent.hashString
         except Exception as e:
@@ -1192,9 +1065,6 @@ class CrossSeed(_PluginBase):
 
     @staticmethod
     def __get_label(torrent: Any, dl_type: str):
-        """
-        获取种子标签
-        """
         try:
             return [str(tag).strip() for tag in torrent.get("tags").split(',')] \
                 if dl_type == "qbittorrent" else torrent.labels or []
@@ -1204,9 +1074,6 @@ class CrossSeed(_PluginBase):
 
     @staticmethod
     def __can_seeding(torrent: Any, dl_type: str):
-        """
-        判断种子是否可以做种并处于暂停状态
-        """
         try:
             return torrent.get("state") in ["pausedUP", "stoppedUP"] if dl_type == "qbittorrent" \
                 else (torrent.status.stopped and torrent.percent_done == 1)
@@ -1216,9 +1083,6 @@ class CrossSeed(_PluginBase):
 
     @staticmethod
     def __get_save_path(torrent: Any, dl_type: str):
-        """
-        获取种子保存路径
-        """
         try:
             return torrent.get("save_path") if dl_type == "qbittorrent" else torrent.download_dir
         except Exception as e:
@@ -1226,9 +1090,6 @@ class CrossSeed(_PluginBase):
             return ""
 
     def stop_service(self):
-        """
-        退出插件
-        """
         try:
             if self._scheduler:
                 self._scheduler.remove_all_jobs()
@@ -1249,9 +1110,6 @@ class CrossSeed(_PluginBase):
 
     @eventmanager.register(EventType.SiteDeleted)
     def site_deleted(self, event):
-        """
-        删除对应站点选中
-        """
         site_id = event.event_data.get("site_id")
         config = self.get_config()
         if config:
@@ -1260,17 +1118,13 @@ class CrossSeed(_PluginBase):
                 if isinstance(sites, str):
                     sites = [sites]
 
-                # 删除对应站点
                 if site_id:
                     sites = [site for site in sites if int(site) != int(site_id)]
                 else:
-                    # 清空
                     sites = []
 
-                # 若无站点，则停止
                 if len(sites) == 0:
                     self._enabled = False
 
                 self._sites = sites
-                # 保存配置
                 self.__update_config()
