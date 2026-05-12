@@ -6,7 +6,7 @@
     "version": "2.4",
     "icon": "qingwa.png",
     "author": "Schalkiii",
-    "level": 1,
+    "level": 2,
     "history": {
       "v2.4": "支持qbittorrent 5，添加跳过哈希校验选项"
     }
