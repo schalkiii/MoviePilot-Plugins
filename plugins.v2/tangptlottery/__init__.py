@@ -26,7 +26,7 @@ class TangptLottery(_PluginBase):
     plugin_desc = "躺平站点自动抽奖，支持定时抽奖、中奖通知、获取站点Cookie等功能。"
     plugin_icon = "Moviepilot_A.png"
     plugin_version = "1.0.0"
-    plugin_author = ""
+    plugin_author = "schalkiii"
     author_url = ""
     plugin_config_prefix = "tangptlottery_"
     plugin_order = 30
@@ -505,10 +505,16 @@ class TangptLottery(_PluginBase):
                         today_record["prizes"] = all_prizes
                         self.__save_records(records)
                         if self._notify:
+                            prize_text = ""
+                            if all_prizes:
+                                counter = Counter(all_prizes)
+                                prize_text = "\n".join([f"  {name}: {count}次" for name, count in counter.most_common()])
                             self.post_message(
                                 mtype=NotificationType.SiteMessage,
                                 title="【躺平自动抽奖助手】",
-                                text=f"抽奖出错：{result.get('message', '未知错误')}\n已完成：{completed}/{target}"
+                                text=f"抽奖出错：{result.get('message', '未知错误')}\n"
+                                     f"已完成：{completed}/{target}\n"
+                                     f"本次已获奖品：\n{prize_text or '  无'}"
                             )
                         return
 
@@ -516,6 +522,8 @@ class TangptLottery(_PluginBase):
                     all_prizes.extend(prizes)
                     completed += draw_count
                     request_count += 1
+
+                    logger.info(f"躺平自动抽奖：第 {request_count} 批请求完成，抽得 {len(prizes)} 个奖品: {', '.join(prizes) if prizes else '无'}")
 
                     today_record["completed_count"] = completed
                     today_record["request_count"] = request_count
@@ -541,7 +549,8 @@ class TangptLottery(_PluginBase):
                 if self._notify:
                     self.__send_lottery_notification(today_record, all_prizes)
 
-                logger.info(f"躺平自动抽奖任务完成，共抽奖 {completed} 次")
+                prize_summary = "、".join([f"{name}x{count}" for name, count in Counter(all_prizes).most_common()]) if all_prizes else "无"
+                logger.info(f"躺平自动抽奖任务完成，共抽奖 {completed} 次，奖品汇总: {prize_summary}")
 
             except Exception as e:
                 logger.error(f"躺平自动抽奖任务异常：{e}")

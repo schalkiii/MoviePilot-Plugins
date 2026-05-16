@@ -986,7 +986,7 @@
     "labels": "抽奖",
     "version": "1.0.0",
     "icon": "Moviepilot_A.png",
-    "author": "",
+    "author": "schalkiii",
     "level": 1,
     "history": {
       "v1.0.0": "初始版本，支持躺平站点自动抽奖"
