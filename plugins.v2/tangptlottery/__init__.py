@@ -26,7 +26,7 @@ class TangptLottery(_PluginBase):
     plugin_name = "躺平自动抽奖助手"
     plugin_desc = "躺平站点自动抽奖+老虎机，支持定时抽奖、中奖通知、期望值分析、获取站点Cookie等功能。"
     plugin_icon = "Moviepilot_A.png"
-    plugin_version = "1.3.0"
+    plugin_version = "1.4.0"
     plugin_author = "schalkiii"
     author_url = ""
     plugin_config_prefix = "tangptlottery_"
