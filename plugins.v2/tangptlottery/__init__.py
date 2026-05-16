@@ -25,7 +25,7 @@ class TangptLottery(_PluginBase):
     plugin_name = "躺平自动抽奖助手"
     plugin_desc = "躺平站点自动抽奖+老虎机，支持定时抽奖、中奖通知、期望值分析、获取站点Cookie等功能。"
     plugin_icon = "Moviepilot_A.png"
-    plugin_version = "1.2.0"
+    plugin_version = "1.3.0"
     plugin_author = "schalkiii"
     author_url = ""
     plugin_config_prefix = "tangptlottery_"
@@ -933,12 +933,10 @@ class TangptLottery(_PluginBase):
                 daily_play_limit = slot_config.get("daily_play_limit", 100)
                 jackpot_pool = page_data.get("jackpot_pool", 0)
                 prize_rows = slot_config.get("prize_rows", [])
-                jackpot_weight = page_data.get("jackpot_weight", 0)
-                total_weight = page_data.get("total_weight", 10000)
                 jackpot_hits = page_data.get("jackpot_hits", 0)
                 total_spins_stat = page_data.get("total_spins_stat", 0)
 
-                ev, ev_detail = self.__calc_slot_ev(prize_rows, base_cost, jackpot_pool, jackpot_weight, total_weight, jackpot_hits, total_spins_stat)
+                ev, ev_detail = self.__calc_slot_ev(prize_rows, base_cost, jackpot_pool, jackpot_hits, total_spins_stat)
                 ev_text = f"期望收益: {ev:+.2f}/每次 (底注{base_cost:,}, 奖池{jackpot_pool:,})"
                 logger.info(f"躺平老虎机：{ev_text}")
                 logger.info(f"躺平老虎机EV明细: {ev_detail}")
@@ -1035,8 +1033,6 @@ class TangptLottery(_PluginBase):
                     "base_cost": base_cost,
                     "multiplier": multiplier,
                     "ev_only": self._slot_ev_only,
-                    "jackpot_weight": jackpot_weight,
-                    "total_weight": total_weight,
                     "status": "completed"
                 }
                 slot_records = self.get_data("slot_records") or []
@@ -1097,30 +1093,23 @@ class TangptLottery(_PluginBase):
                     "daily_play_limit": 100,
                     "jackpot_pool": 0,
                     "prize_rows": [],
-                    "jackpot_rule": {},
                     "prize_summary": {},
                     "global_stats": {}
                 }
 
             jackpot_pool = slot_config.get("jackpot_pool", 0) or 0
             prize_summary = slot_config.get("prize_summary", {}) or {}
-            total_weight = prize_summary.get("total_weight", 10000) or 10000
             global_stats = slot_config.get("global_stats", {}) or {}
             jackpot_hits = global_stats.get("jackpot_hits", 0) or 0
             total_spins_stat = global_stats.get("total_spins", 0) or 0
-            jackpot_rule = slot_config.get("jackpot_rule", {}) or {}
-            jackpot_weight = jackpot_rule.get("weight", 0) if jackpot_rule.get("enabled") else 0
 
             logger.info(f"躺平老虎机页面解析: spin_token={'OK' if spin_token else 'FAIL'}, "
                         f"base_cost={slot_config.get('base_cost')}, free_spins={slot_config.get('daily_free_spins')}, "
-                        f"jackpot_pool={jackpot_pool}, total_weight={total_weight}, "
-                        f"jackpot_weight={jackpot_weight}, spins={total_spins_stat}")
+                        f"jackpot_pool={jackpot_pool}, spins={total_spins_stat}, jackpot_hits={jackpot_hits}")
             return {
                 "spin_token": spin_token,
                 "slot_config": slot_config,
                 "jackpot_pool": jackpot_pool,
-                "total_weight": total_weight,
-                "jackpot_weight": jackpot_weight,
                 "jackpot_hits": jackpot_hits,
                 "total_spins_stat": total_spins_stat
             }
@@ -1131,7 +1120,6 @@ class TangptLottery(_PluginBase):
 
     @staticmethod
     def __calc_slot_ev(prize_rows: list, base_cost: int, jackpot_pool: int,
-                       jackpot_weight: int = 0, total_weight: int = 10000,
                        jackpot_hits: int = 0, total_spins_stat: int = 0) -> Tuple[float, str]:
         if not prize_rows or base_cost <= 0:
             return 0.0, "无数据"
@@ -1158,31 +1146,25 @@ class TangptLottery(_PluginBase):
         jackpot_prob = 0.0
         jackpot_detail = ""
 
-        if jackpot_hits > 0 and total_spins_stat > 0:
-            jackpot_prob = jackpot_hits / total_spins_stat
-            jackpot_ev = jackpot_prob * jackpot_pool
-            triple_prob = 0
-            for row in prize_rows:
-                if row.get("rule_type") == "triple_any":
-                    triple_prob = row.get("probability", 0) / 100.0
-                    break
-            if triple_prob > 0:
-                p_symbol_given_triple = jackpot_prob / triple_prob * 100
-                jackpot_detail = (
-                    f"Jackpot: 历史{jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
-                    f"理论=P(三连={triple_prob*100:.2f}%)×P(7|三连={p_symbol_given_triple:.2f}%) | "
-                    f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
-                )
-            else:
-                jackpot_detail = (
-                    f"Jackpot: 历史{jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
-                    f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
-                )
-        elif jackpot_weight > 0 and total_weight > 0:
-            jackpot_prob = jackpot_weight / total_weight
-            jackpot_ev = jackpot_prob * jackpot_pool
+        jackpot_hits = jackpot_hits or 6
+        total_spins_stat = total_spins_stat or 19081
+        jackpot_prob = jackpot_hits / total_spins_stat
+        jackpot_ev = jackpot_prob * jackpot_pool
+        triple_prob = 0
+        for row in prize_rows:
+            if row.get("rule_type") == "triple_any":
+                triple_prob = row.get("probability", 0) / 100.0
+                break
+        if triple_prob > 0:
+            p_symbol_given_triple = jackpot_prob / triple_prob * 100
             jackpot_detail = (
-                f"Jackpot: 权重{jackpot_weight}/{total_weight}={jackpot_prob*100:.4f}% | "
+                f"Jackpot: {jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
+                f"理论=P(三连={triple_prob*100:.2f}%)×P(7|三连={p_symbol_given_triple:.2f}%) | "
+                f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
+            )
+        else:
+            jackpot_detail = (
+                f"Jackpot: {jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
                 f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
             )
 
