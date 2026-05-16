@@ -87,8 +87,8 @@ class TangptLottery(_PluginBase):
                 "slot_ev_only": self._slot_ev_only,
                 "run_once": False
             })
-            logger.info("收到配置页立即运行请求，后台启动抽奖任务")
-            threading.Thread(target=self.run_lottery_task, daemon=True).start()
+            logger.info("收到配置页立即运行请求，后台启动抽奖+老虎机任务")
+            threading.Thread(target=self.run_all_tasks, daemon=True).start()
 
     def get_state(self) -> bool:
         return self._enabled
@@ -170,106 +170,133 @@ class TangptLottery(_PluginBase):
                         "content": [
                             {
                                 "component": "VCol",
-                                "props": {"cols": 12, "md": 3},
+                                "props": {"cols": 12},
                                 "content": [
                                     {
-                                        "component": "VSwitch",
-                                        "props": {"model": "enabled", "label": "启用插件"}
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {"cols": 12, "md": 3},
-                                "content": [
-                                    {
-                                        "component": "VSwitch",
-                                        "props": {"model": "notify", "label": "发送通知"}
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {"cols": 12, "md": 3},
-                                "content": [
-                                    {
-                                        "component": "VSwitch",
-                                        "props": {
-                                            "model": "run_once",
-                                            "label": "立即运行一次",
-                                            "hint": "保存配置后执行，并自动关闭"
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {"cols": 12, "md": 3},
-                                "content": [
-                                    {
-                                        "component": "VBtn",
-                                        "props": {
-                                            "color": "primary",
-                                            "variant": "tonal",
-                                            "text": "立即执行一次"
-                                        },
-                                        "events": {
-                                            "click": {
-                                                "api": "plugin/TangptLottery/run",
-                                                "method": "post"
+                                        "component": "VCard",
+                                        "props": {"variant": "outlined", "class": "pa-3"},
+                                        "content": [
+                                            {
+                                                "component": "VCardTitle",
+                                                "props": {"class": "text-subtitle-1"},
+                                                "text": "抽奖设置"
+                                            },
+                                            {
+                                                "component": "VCardText",
+                                                "content": [
+                                                    {
+                                                        "component": "VRow",
+                                                        "content": [
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VSwitch",
+                                                                        "props": {"model": "enabled", "label": "启用插件"}
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VSwitch",
+                                                                        "props": {"model": "notify", "label": "发送通知"}
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VSwitch",
+                                                                        "props": {
+                                                                            "model": "run_once",
+                                                                            "label": "立即运行一次",
+                                                                            "hint": "保存配置后执行抽奖和老虎机，并自动关闭"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VBtn",
+                                                                        "props": {
+                                                                            "color": "primary",
+                                                                            "variant": "tonal",
+                                                                            "text": "立即执行一次"
+                                                                        },
+                                                                        "events": {
+                                                                            "click": {
+                                                                                "api": "plugin/TangptLottery/run",
+                                                                                "method": "post"
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            }
+                                                        ]
+                                                    },
+                                                    {
+                                                        "component": "VRow",
+                                                        "content": [
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 4},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VTextField",
+                                                                        "props": {
+                                                                            "model": "draw_count",
+                                                                            "label": "每次抽奖数量",
+                                                                            "type": "number",
+                                                                            "min": 1,
+                                                                            "hint": "单次请求抽奖次数"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 4},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VTextField",
+                                                                        "props": {
+                                                                            "model": "target_count",
+                                                                            "label": "每日目标总次数",
+                                                                            "type": "number",
+                                                                            "min": 1,
+                                                                            "hint": "每天总共抽奖次数"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 4},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VCronField",
+                                                                        "props": {
+                                                                            "model": "cron",
+                                                                            "label": "执行周期",
+                                                                            "placeholder": "5位 Cron 表达式，例如 10 2 * * *"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
                                             }
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        "component": "VRow",
-                        "content": [
-                            {
-                                "component": "VCol",
-                                "props": {"cols": 12, "md": 4},
-                                "content": [
-                                    {
-                                        "component": "VTextField",
-                                        "props": {
-                                            "model": "draw_count",
-                                            "label": "每次抽奖数量",
-                                            "type": "number",
-                                            "min": 1,
-                                            "hint": "单次请求抽奖次数"
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {"cols": 12, "md": 4},
-                                "content": [
-                                    {
-                                        "component": "VTextField",
-                                        "props": {
-                                            "model": "target_count",
-                                            "label": "每日目标总次数",
-                                            "type": "number",
-                                            "min": 1,
-                                            "hint": "每天总共抽奖次数"
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {"cols": 12, "md": 4},
-                                "content": [
-                                    {
-                                        "component": "VCronField",
-                                        "props": {
-                                            "model": "cron",
-                                            "label": "执行周期",
-                                            "placeholder": "5位 Cron 表达式，例如 10 2 * * *"
-                                        }
+                                        ]
                                     }
                                 ]
                             }
@@ -336,7 +363,7 @@ class TangptLottery(_PluginBase):
                                                                             "label": "倍率",
                                                                             "type": "number",
                                                                             "min": 1,
-                                                                            "hint": "每次旋转的倍率，消耗=倍率x底注"
+                                                                            "hint": "每次旋转的倍率，消耗=倍率×底注(5000)。倍率1消耗5000，倍率2消耗10000，派彩也翻倍"
                                                                         }
                                                                     }
                                                                 ]
