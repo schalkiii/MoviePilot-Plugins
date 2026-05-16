@@ -844,12 +844,17 @@ class TangptLottery(_PluginBase):
                 base_cost = slot_config.get("base_cost", 5000)
                 daily_free_spins = slot_config.get("daily_free_spins", 2)
                 daily_play_limit = slot_config.get("daily_play_limit", 100)
-                jackpot_pool = slot_config.get("jackpot_pool", 0)
+                jackpot_pool = page_data.get("jackpot_pool", 0)
                 prize_rows = slot_config.get("prize_rows", [])
+                jackpot_weight = page_data.get("jackpot_weight", 0)
+                total_weight = page_data.get("total_weight", 10000)
+                jackpot_hits = page_data.get("jackpot_hits", 0)
+                total_spins_stat = page_data.get("total_spins_stat", 0)
 
-                ev = self.__calc_slot_ev(prize_rows, base_cost, jackpot_pool)
+                ev, ev_detail = self.__calc_slot_ev(prize_rows, base_cost, jackpot_pool, jackpot_weight, total_weight, jackpot_hits, total_spins_stat)
                 ev_text = f"期望收益: {ev:+.2f}/每次 (底注{base_cost:,}, 奖池{jackpot_pool:,})"
                 logger.info(f"躺平老虎机：{ev_text}")
+                logger.info(f"躺平老虎机EV明细: {ev_detail}")
 
                 multiplier = self._slot_multiplier
                 per_spin_cost = base_cost * multiplier
@@ -938,10 +943,13 @@ class TangptLottery(_PluginBase):
                     "net": net,
                     "jackpot_hit": jackpot_hit,
                     "ev": ev,
+                    "ev_detail": ev_detail,
                     "jackpot_pool": jackpot_pool,
                     "base_cost": base_cost,
                     "multiplier": multiplier,
                     "ev_only": self._slot_ev_only,
+                    "jackpot_weight": jackpot_weight,
+                    "total_weight": total_weight,
                     "status": "completed"
                 }
                 slot_records = self.get_data("slot_records") or []
@@ -1001,30 +1009,84 @@ class TangptLottery(_PluginBase):
                     "daily_free_spins": 2,
                     "daily_play_limit": 100,
                     "jackpot_pool": 0,
-                    "prize_rows": []
+                    "prize_rows": [],
+                    "jackpot_rule": {},
+                    "prize_summary": {},
+                    "global_stats": {}
                 }
 
+            jackpot_pool = slot_config.get("jackpot_pool", 0) or 0
+            prize_summary = slot_config.get("prize_summary", {}) or {}
+            total_weight = prize_summary.get("total_weight", 10000) or 10000
+            global_stats = slot_config.get("global_stats", {}) or {}
+            jackpot_hits = global_stats.get("jackpot_hits", 0) or 0
+            total_spins_stat = global_stats.get("total_spins", 0) or 0
+            jackpot_rule = slot_config.get("jackpot_rule", {}) or {}
+            jackpot_weight = jackpot_rule.get("weight", 0) if jackpot_rule.get("enabled") else 0
+
             logger.info(f"躺平老虎机页面解析: spin_token={'OK' if spin_token else 'FAIL'}, "
-                        f"base_cost={slot_config.get('base_cost')}, free_spins={slot_config.get('daily_free_spins')}")
-            return {"spin_token": spin_token, "slot_config": slot_config}
+                        f"base_cost={slot_config.get('base_cost')}, free_spins={slot_config.get('daily_free_spins')}, "
+                        f"jackpot_pool={jackpot_pool}, total_weight={total_weight}, "
+                        f"jackpot_weight={jackpot_weight}, spins={total_spins_stat}")
+            return {
+                "spin_token": spin_token,
+                "slot_config": slot_config,
+                "jackpot_pool": jackpot_pool,
+                "total_weight": total_weight,
+                "jackpot_weight": jackpot_weight,
+                "jackpot_hits": jackpot_hits,
+                "total_spins_stat": total_spins_stat
+            }
 
         except Exception as e:
             logger.error(f"躺平老虎机页面获取异常: {e}")
             return None
 
     @staticmethod
-    def __calc_slot_ev(prize_rows: list, base_cost: int, jackpot_pool: int) -> float:
+    def __calc_slot_ev(prize_rows: list, base_cost: int, jackpot_pool: int,
+                       jackpot_weight: int = 0, total_weight: int = 10000,
+                       jackpot_hits: int = 0, total_spins_stat: int = 0) -> Tuple[float, str]:
         if not prize_rows or base_cost <= 0:
-            return 0.0
-        total_prob = 0.0
-        weighted_payout = 0.0
+            return 0.0, "无数据"
+
+        base_rtp = 0.0
+        row_details = []
         for row in prize_rows:
             prob = row.get("probability", 0) / 100.0
             payout_mult = row.get("payout_multiplier", 0)
-            weighted_payout += prob * payout_mult * base_cost
-            total_prob += prob
-        ev = weighted_payout - base_cost
-        return ev
+            row_rtp = prob * payout_mult
+            base_rtp += row_rtp
+            row_details.append(f"{row.get('name','?')}: {row.get('probability',0):.2f}% ×{payout_mult} = RTP {row_rtp*100:.2f}%")
+
+        base_ev = base_rtp * base_cost - base_cost
+
+        jackpot_ev = 0.0
+        jackpot_prob = 0.0
+        jackpot_detail = ""
+
+        if jackpot_weight > 0 and total_weight > 0:
+            jackpot_prob = jackpot_weight / (total_weight + jackpot_weight)
+            jackpot_ev = jackpot_prob * jackpot_pool
+            jackpot_detail = f"Jackpot: 权重{jackpot_weight}/{total_weight+jackpot_weight} = {jackpot_prob*100:.4f}%, 期望+{jackpot_ev:.2f}/次"
+        elif jackpot_hits > 0 and total_spins_stat > 0:
+            jackpot_prob = jackpot_hits / total_spins_stat
+            jackpot_ev = jackpot_prob * jackpot_pool
+            jackpot_detail = f"Jackpot(历史): {jackpot_hits}/{total_spins_stat} = {jackpot_prob*100:.4f}%, 期望+{jackpot_ev:.2f}/次"
+
+        total_ev = base_ev + jackpot_ev
+        total_rtp = (base_cost + total_ev) / base_cost * 100 if base_cost > 0 else 0
+
+        detail_parts = [
+            f"底注={base_cost:,}",
+            f"基础RTP={base_rtp*100:.2f}%",
+            f"基础EV={base_ev:+.2f}",
+        ]
+        if jackpot_detail:
+            detail_parts.append(jackpot_detail)
+        detail_parts.append(f"综合RTP={total_rtp:.2f}%")
+        detail_parts.append(f"综合EV={total_ev:+.2f}/次")
+
+        return total_ev, " | ".join(detail_parts)
 
     def __do_slot_spin(self, spin_token: str, multiplier: int = 1) -> Dict[str, Any]:
         try:
@@ -1094,6 +1156,7 @@ class TangptLottery(_PluginBase):
         net = record.get("net", 0)
         jackpot_hit = record.get("jackpot_hit", False)
         jackpot_pool = record.get("jackpot_pool", 0)
+        ev_detail = record.get("ev_detail", "")
 
         spin_results = []
         for r in results:
@@ -1105,6 +1168,7 @@ class TangptLottery(_PluginBase):
         text = (
             f"日期：{record.get('date')}\n"
             f"{ev_text}\n"
+            f"EV明细: {ev_detail}\n"
             f"旋转：{total_spins} 转 (免费{free_used}+付费{total_spins-free_used})\n"
             f"结果：赢{wins} / 输{losses}\n"
             f"花费：{total_cost:,}  派彩：{total_payout:,}\n"
