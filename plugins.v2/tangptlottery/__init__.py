@@ -414,6 +414,75 @@ class TangptLottery(_PluginBase):
                         ]
                     }
                 ]
+            },
+            {
+                "component": "VDivider",
+                "props": {"class": "my-4"}
+            },
+            {
+                "component": "div",
+                "props": {"class": "text-h6 mb-3"},
+                "text": "老虎机"
+            },
+            {
+                "component": "VCard",
+                "props": {"variant": "tonal", "class": "mb-4"},
+                "content": [
+                    {
+                        "component": "VCardTitle",
+                        "text": "期望值(EV)计算说明"
+                    },
+                    {
+                        "component": "VCardText",
+                        "content": [
+                            {
+                                "component": "div",
+                                "props": {"class": "text-body-2"},
+                                "text": "RTP(Return To Player) = 玩家回报率，即每投入100元平均能拿回多少。"
+                            },
+                            {
+                                "component": "div",
+                                "props": {"class": "text-body-2 mt-1"},
+                                "text": "EV(Expected Value) = 期望值，即每次旋转平均盈亏。"
+                            },
+                            {
+                                "component": "div",
+                                "props": {"class": "text-body-2 mt-1"},
+                                "text": "计算方式：EV = Σ(每种结果概率 × 该结果派彩金额) - 底注"
+                            },
+                            {
+                                "component": "div",
+                                "props": {"class": "text-body-2 mt-1"},
+                                "text": "例如底注5000时，三连概率7.05%派彩6250，二连概率~25%派彩1875，未中奖概率67.95%派彩0。"
+                            },
+                            {
+                                "component": "div",
+                                "props": {"class": "text-body-2 mt-1"},
+                                "text": "加上Jackpot期望后得出综合EV。若EV为负(期望亏损)，启用\"仅期望盈利时抽\"则跳过付费旋转。"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "component": "VDataTable",
+                "props": {
+                    "headers": [
+                        {"title": "日期", "key": "date"},
+                        {"title": "旋转", "key": "total_spins"},
+                        {"title": "免费", "key": "free_used"},
+                        {"title": "赢/输", "key": "win_loss"},
+                        {"title": "花费", "key": "total_cost"},
+                        {"title": "派彩", "key": "total_payout"},
+                        {"title": "净收益", "key": "net"},
+                        {"title": "EV", "key": "ev_text"},
+                        {"title": "状态", "key": "status"}
+                    ],
+                    "items": self.__slot_records_for_page(),
+                    "items-per-page": 10,
+                    "hide-default-footer": True,
+                    "density": "compact"
+                }
             }
         ], {
             "enabled": self._enabled,
@@ -550,6 +619,24 @@ class TangptLottery(_PluginBase):
                 ]
             }
         ]
+
+    def __slot_records_for_page(self) -> List[dict]:
+        records = self.get_data("slot_records") or []
+        result = []
+        for r in records:
+            ev_val = r.get("ev", 0)
+            result.append({
+                "date": r.get("date", ""),
+                "total_spins": r.get("total_spins", 0),
+                "free_used": r.get("free_used", 0),
+                "win_loss": f"{r.get('wins',0)}/{r.get('losses',0)}",
+                "total_cost": r.get("total_cost", 0),
+                "total_payout": r.get("total_payout", 0),
+                "net": r.get("net", 0),
+                "ev_text": f"{ev_val:+.0f}",
+                "status": "已完成" if r.get("jackpot_hit") else r.get("status", "")
+            })
+        return result
 
     def run_once_api(self):
         threading.Thread(target=self.run_all_tasks, daemon=True).start()
