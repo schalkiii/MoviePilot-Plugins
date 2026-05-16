@@ -1006,5 +1006,17 @@
     "history": {
       "v1.0.0": "初始版本，支持藏宝阁PT每月定时任务领取"
     }
+  },
+  "NovaHDClaim": {
+    "name": "NovaHD任务领取",
+    "description": "每月定时为NovaHD领取任务，领取后推送飞书消息通知。",
+    "labels": "站点,任务",
+    "version": "1.0.0",
+    "icon": "signin.png",
+    "author": "novahd",
+    "level": 1,
+    "history": {
+      "v1.0.0": "初始版本，支持NovaHD每月定时任务领取"
+    }
   }
 }
