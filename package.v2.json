@@ -984,11 +984,12 @@
     "name": "躺平自动抽奖助手",
     "description": "躺平站点自动抽奖，支持定时抽奖、中奖通知、获取站点Cookie等功能",
     "labels": "抽奖",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "icon": "Moviepilot_A.png",
     "author": "schalkiii",
     "level": 1,
     "history": {
+      "v1.1.0": "修复奖品解析逻辑，新增原始响应日志，补充作者信息",
       "v1.0.0": "初始版本，支持躺平站点自动抽奖"
     }
   }

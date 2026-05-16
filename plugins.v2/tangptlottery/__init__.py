@@ -25,7 +25,7 @@ class TangptLottery(_PluginBase):
     plugin_name = "躺平自动抽奖助手"
     plugin_desc = "躺平站点自动抽奖，支持定时抽奖、中奖通知、获取站点Cookie等功能。"
     plugin_icon = "Moviepilot_A.png"
-    plugin_version = "1.0.0"
+    plugin_version = "1.1.0"
     plugin_author = "schalkiii"
     author_url = ""
     plugin_config_prefix = "tangptlottery_"
@@ -603,37 +603,18 @@ class TangptLottery(_PluginBase):
             except Exception:
                 return {"success": False, "message": f"响应解析失败: {response.text[:200]}"}
 
+            logger.info(f"躺平抽奖原始响应: {response.text[:800]}")
+
             prizes = []
             if isinstance(result, dict):
                 if result.get("status") == "error" or result.get("ret") == "error":
                     return {"success": False, "message": result.get("msg") or result.get("message") or "抽奖失败"}
 
                 data_field = result.get("data") or result.get("result") or result
-                if isinstance(data_field, list):
-                    for item in data_field:
-                        if isinstance(item, dict):
-                            prize_name = item.get("prize") or item.get("name") or item.get("title") or item.get("reward") or str(item)
-                            prizes.append(prize_name)
-                        elif isinstance(item, str):
-                            prizes.append(item)
-                elif isinstance(data_field, dict):
-                    items = data_field.get("items") or data_field.get("prizes") or data_field.get("list") or []
-                    if isinstance(items, list):
-                        for item in items:
-                            if isinstance(item, dict):
-                                prize_name = item.get("prize") or item.get("name") or item.get("title") or item.get("reward") or str(item)
-                                prizes.append(prize_name)
-                            elif isinstance(item, str):
-                                prizes.append(item)
-                    else:
-                        msg = data_field.get("msg") or data_field.get("message") or ""
-                        if msg:
-                            prizes.append(msg)
+                prizes = self.__parse_prizes(data_field)
 
                 if not prizes:
-                    msg = result.get("msg") or result.get("message") or ""
-                    if msg:
-                        prizes.append(msg)
+                    prizes = self.__parse_prizes(result)
 
             return {"success": True, "prizes": prizes, "raw": result}
 
@@ -641,6 +622,50 @@ class TangptLottery(_PluginBase):
             return {"success": False, "message": f"请求异常: {str(e)}"}
         except Exception as e:
             return {"success": False, "message": f"未知异常: {str(e)}"}
+
+    @staticmethod
+    def __extract_prize_name(item) -> Optional[str]:
+        if isinstance(item, str):
+            return item
+        if isinstance(item, dict):
+            for key in ["prize", "prize_name", "name", "title", "reward",
+                         "reward_name", "award", "award_name", "gift", "gift_name",
+                         "content", "text", "description", "prize_type", "type"]:
+                value = item.get(key)
+                if value and isinstance(value, str):
+                    return value
+        return None
+
+    @staticmethod
+    def __parse_prizes(data_field) -> List[str]:
+        prizes = []
+        if isinstance(data_field, list):
+            for item in data_field:
+                prize = TangptLottery.__extract_prize_name(item)
+                if prize:
+                    prizes.append(prize)
+        elif isinstance(data_field, dict):
+            list_keys = ["items", "prizes", "list", "prize_list", "reward_list",
+                         "award_list", "gift_list", "data_list", "records"]
+            for key in list_keys:
+                items = data_field.get(key)
+                if isinstance(items, list) and items:
+                    for item in items:
+                        prize = TangptLottery.__extract_prize_name(item)
+                        if prize:
+                            prizes.append(prize)
+                    if prizes:
+                        return prizes
+
+            prize = TangptLottery.__extract_prize_name(data_field)
+            if prize:
+                prizes.append(prize)
+
+            if not prizes:
+                msg = data_field.get("msg") or data_field.get("message") or ""
+                if msg:
+                    prizes.append(msg)
+        return prizes
 
     def __fetch_lottery_info(self) -> Dict[str, Any]:
         info = {
