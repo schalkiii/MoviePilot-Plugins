@@ -1,3 +1,4 @@
+import json
 import re
 import threading
 import time
@@ -632,6 +633,8 @@ class TangptLottery(_PluginBase):
         result = []
         for r in records:
             ev_val = r.get("ev", 0)
+            raw_status = r.get("status", "")
+            display_status = "已完成" if r.get("jackpot_hit") else self.__status_text(raw_status)
             result.append({
                 "date": r.get("date", ""),
                 "total_spins": r.get("total_spins", 0),
@@ -641,7 +644,7 @@ class TangptLottery(_PluginBase):
                 "total_payout": r.get("total_payout", 0),
                 "net": r.get("net", 0),
                 "ev_text": f"{ev_val:+.0f}",
-                "status": "已完成" if r.get("jackpot_hit") else r.get("status", "")
+                "status": display_status
             })
         return result
 
@@ -972,22 +975,18 @@ class TangptLottery(_PluginBase):
                     if not result.get("success"):
                         logger.error(f"躺平老虎机免费抽第{i+1}次失败: {result.get('message')}")
                         break
-                    spin_token = self.__refresh_spin_token(spin_token, result)
+                    spin_token, sr = self.__record_spin_result(result, spin_token, "免费", i + 1)
                     free_used += 1
                     total_spins += 1
-                    total_cost += result.get("total_cost", 0)
-                    total_payout += result.get("payout", 0)
-                    spin_result = result.get("result", "lose")
-                    if spin_result == "win" or spin_result == "triple_win":
+                    total_cost += sr["total_cost"]
+                    total_payout += sr["payout"]
+                    if sr["is_win"]:
                         wins += 1
                     else:
                         losses += 1
-                    if result.get("is_jackpot"):
+                    if sr["is_jackpot"]:
                         jackpot_hit = True
-                    results.append(result)
-                    reels_info = " | ".join([r.get("name", "?") for r in result.get("reels", [])])
-                    logger.info(f"躺平老虎机免费抽第{i+1}次: {spin_result}, reels=[{reels_info}], payout={result.get('payout', 0)}")
-                    time.sleep(1)
+                    results.append(sr["result_obj"])
 
                 if max_paid > 0:
                     logger.info(f"躺平老虎机：开始付费旋转，最多{max_paid}次，每次消耗{per_spin_cost:,}")
@@ -996,21 +995,17 @@ class TangptLottery(_PluginBase):
                         if not result.get("success"):
                             logger.error(f"躺平老虎机第{i+1}次付费失败: {result.get('message')}")
                             break
-                        spin_token = self.__refresh_spin_token(spin_token, result)
+                        spin_token, sr = self.__record_spin_result(result, spin_token, "付费", i + 1)
                         total_spins += 1
-                        total_cost += result.get("total_cost", 0)
-                        total_payout += result.get("payout", 0)
-                        spin_result = result.get("result", "lose")
-                        if spin_result == "win" or spin_result == "triple_win":
+                        total_cost += sr["total_cost"]
+                        total_payout += sr["payout"]
+                        if sr["is_win"]:
                             wins += 1
                         else:
                             losses += 1
-                        if result.get("is_jackpot"):
+                        if sr["is_jackpot"]:
                             jackpot_hit = True
-                        results.append(result)
-                        reels_info = " | ".join([r.get("name", "?") for r in result.get("reels", [])])
-                        logger.info(f"躺平老虎机付费第{i+1}次: {spin_result}, reels=[{reels_info}], payout={result.get('payout', 0)}")
-                        time.sleep(1)
+                        results.append(sr["result_obj"])
 
                 if total_spins == 0:
                     logger.warn("躺平老虎机：没有执行任何旋转")
@@ -1081,18 +1076,29 @@ class TangptLottery(_PluginBase):
                 token_match = re.search(r'spin_token["\']?\s*:\s*["\']?([a-f0-9]+)["\']?', html)
             spin_token = token_match.group(1) if token_match else None
 
-            config_match = re.search(r'page_state\s*=\s*({.+?});\s*</script>', html, re.DOTALL)
-            if not config_match:
-                config_match = re.search(r'"page_state"\s*:\s*({.+?})\s*,\s*"', html, re.DOTALL)
             slot_config = {}
-            if config_match:
-                try:
-                    import json
-                    config_raw = config_match.group(1)
-                    page_state = json.loads(config_raw)
-                    slot_config = page_state.get("config", {})
-                except Exception:
-                    pass
+            page_state_start = html.find('page_state = ')
+            if page_state_start >= 0:
+                brace_start = html.find('{', page_state_start)
+                if brace_start >= 0:
+                    depth = 0
+                    end_pos = brace_start
+                    for i in range(brace_start, len(html)):
+                        c = html[i]
+                        if c == '{':
+                            depth += 1
+                        elif c == '}':
+                            depth -= 1
+                            if depth == 0:
+                                end_pos = i + 1
+                                break
+                    if depth == 0 and end_pos > brace_start:
+                        try:
+                            config_raw = html[brace_start:end_pos]
+                            page_state = json.loads(config_raw)
+                            slot_config = page_state.get("config", {})
+                        except Exception:
+                            pass
 
             if not slot_config:
                 slot_config = {
@@ -1154,9 +1160,9 @@ class TangptLottery(_PluginBase):
         jackpot_prob = 0.0
         jackpot_detail = ""
 
-        jackpot_hits = jackpot_hits or 6
-        total_spins_stat = total_spins_stat or 19081
-        jackpot_prob = jackpot_hits / total_spins_stat
+        hits = jackpot_hits or 6
+        spins = total_spins_stat or 19081
+        jackpot_prob = hits / spins
         jackpot_ev = jackpot_prob * jackpot_pool
         triple_prob = 0
         for row in prize_rows:
@@ -1166,13 +1172,13 @@ class TangptLottery(_PluginBase):
         if triple_prob > 0:
             p_symbol_given_triple = jackpot_prob / triple_prob * 100
             jackpot_detail = (
-                f"Jackpot: {jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
+                f"Jackpot: {hits}/{spins}={jackpot_prob*100:.4f}% | "
                 f"理论=P(三连={triple_prob*100:.2f}%)×P(7|三连={p_symbol_given_triple:.2f}%) | "
                 f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
             )
         else:
             jackpot_detail = (
-                f"Jackpot: {jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
+                f"Jackpot: {hits}/{spins}={jackpot_prob*100:.4f}% | "
                 f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
             )
 
@@ -1264,6 +1270,25 @@ class TangptLottery(_PluginBase):
             return {"success": False, "message": f"请求异常: {str(e)}"}
         except Exception as e:
             return {"success": False, "message": f"未知异常: {str(e)}"}
+
+    def __record_spin_result(self, result: dict, spin_token: str, spin_type: str, seq: int) -> Tuple[str, dict]:
+        new_token = self.__refresh_spin_token(spin_token, result)
+        spin_result = result.get("result", "lose")
+        is_win = spin_result == "win" or spin_result == "triple_win"
+        is_jackpot = result.get("is_jackpot", False)
+        reels_info = " | ".join([r.get("name", "?") for r in result.get("reels", [])])
+        logger.info(
+            f"躺平老虎机{spin_type}抽第{seq}次: {spin_result}, "
+            f"reels=[{reels_info}], payout={result.get('payout', 0)}"
+        )
+        time.sleep(1)
+        return new_token, {
+            "is_win": is_win,
+            "is_jackpot": is_jackpot,
+            "total_cost": result.get("total_cost", 0),
+            "payout": result.get("payout", 0),
+            "result_obj": result
+        }
 
     def __send_slot_notification(self, record: dict, results: list, ev_text: str):
         total_spins = record.get("total_spins", 0)
