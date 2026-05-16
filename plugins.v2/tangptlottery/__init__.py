@@ -170,6 +170,65 @@ class TangptLottery(_PluginBase):
                         "content": [
                             {
                                 "component": "VCol",
+                                "props": {"cols": 12, "md": 3},
+                                "content": [
+                                    {
+                                        "component": "VSwitch",
+                                        "props": {"model": "enabled", "label": "启用插件"}
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {"cols": 12, "md": 3},
+                                "content": [
+                                    {
+                                        "component": "VSwitch",
+                                        "props": {"model": "notify", "label": "发送通知"}
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {"cols": 12, "md": 3},
+                                "content": [
+                                    {
+                                        "component": "VSwitch",
+                                        "props": {
+                                            "model": "run_once",
+                                            "label": "立即运行一次",
+                                            "hint": "保存配置后执行抽奖和老虎机，并自动关闭"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {"cols": 12, "md": 3},
+                                "content": [
+                                    {
+                                        "component": "VBtn",
+                                        "props": {
+                                            "color": "primary",
+                                            "variant": "tonal",
+                                            "text": "立即执行一次"
+                                        },
+                                        "events": {
+                                            "click": {
+                                                "api": "plugin/TangptLottery/run",
+                                                "method": "post"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "component": "VRow",
+                        "content": [
+                            {
+                                "component": "VCol",
                                 "props": {"cols": 12},
                                 "content": [
                                     {
@@ -184,65 +243,6 @@ class TangptLottery(_PluginBase):
                                             {
                                                 "component": "VCardText",
                                                 "content": [
-                                                    {
-                                                        "component": "VRow",
-                                                        "content": [
-                                                            {
-                                                                "component": "VCol",
-                                                                "props": {"cols": 12, "md": 3},
-                                                                "content": [
-                                                                    {
-                                                                        "component": "VSwitch",
-                                                                        "props": {"model": "enabled", "label": "启用插件"}
-                                                                    }
-                                                                ]
-                                                            },
-                                                            {
-                                                                "component": "VCol",
-                                                                "props": {"cols": 12, "md": 3},
-                                                                "content": [
-                                                                    {
-                                                                        "component": "VSwitch",
-                                                                        "props": {"model": "notify", "label": "发送通知"}
-                                                                    }
-                                                                ]
-                                                            },
-                                                            {
-                                                                "component": "VCol",
-                                                                "props": {"cols": 12, "md": 3},
-                                                                "content": [
-                                                                    {
-                                                                        "component": "VSwitch",
-                                                                        "props": {
-                                                                            "model": "run_once",
-                                                                            "label": "立即运行一次",
-                                                                            "hint": "保存配置后执行抽奖和老虎机，并自动关闭"
-                                                                        }
-                                                                    }
-                                                                ]
-                                                            },
-                                                            {
-                                                                "component": "VCol",
-                                                                "props": {"cols": 12, "md": 3},
-                                                                "content": [
-                                                                    {
-                                                                        "component": "VBtn",
-                                                                        "props": {
-                                                                            "color": "primary",
-                                                                            "variant": "tonal",
-                                                                            "text": "立即执行一次"
-                                                                        },
-                                                                        "events": {
-                                                                            "click": {
-                                                                                "api": "plugin/TangptLottery/run",
-                                                                                "method": "post"
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                ]
-                                                            }
-                                                        ]
-                                                    },
                                                     {
                                                         "component": "VRow",
                                                         "content": [
