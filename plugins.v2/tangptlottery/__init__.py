@@ -1077,9 +1077,10 @@ class TangptLottery(_PluginBase):
             spin_token = token_match.group(1) if token_match else None
 
             slot_config = {}
-            page_state_start = html.find('page_state = ')
-            if page_state_start >= 0:
-                brace_start = html.find('{', page_state_start)
+            slot_initial_state = None
+            state_start = html.find('__slotInitialState')
+            if state_start >= 0:
+                brace_start = html.find('{', state_start)
                 if brace_start >= 0:
                     depth = 0
                     end_pos = brace_start
@@ -1095,10 +1096,24 @@ class TangptLottery(_PluginBase):
                     if depth == 0 and end_pos > brace_start:
                         try:
                             config_raw = html[brace_start:end_pos]
-                            page_state = json.loads(config_raw)
-                            slot_config = page_state.get("config", {})
+                            slot_initial_state = json.loads(config_raw)
+                            slot_config = slot_initial_state.get("config", {})
                         except Exception:
                             pass
+
+            spin_token = None
+            if slot_initial_state:
+                user_state = slot_initial_state.get("user_state", {}) or {}
+                spin_token = user_state.get("spin_token", "") or None
+            if not spin_token:
+                token_match = re.search(r'spin_token["\s:=]+["\']?([a-f0-9]{32})["\']?', html)
+                if not token_match:
+                    token_match = re.search(r'name=["\']spin_token["\']\s+value=["\']([^"\']+)["\']', html)
+                if not token_match:
+                    token_match = re.search(r'spin_token\s*=\s*["\']([^"\']+)["\']', html)
+                if not token_match:
+                    token_match = re.search(r'spin_token["\']?\s*:\s*["\']?([a-f0-9]+)["\']?', html)
+                spin_token = token_match.group(1) if token_match else None
 
             if not slot_config:
                 slot_config = {

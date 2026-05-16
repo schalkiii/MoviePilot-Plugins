@@ -122,11 +122,11 @@ def calc_slot_ev(prize_rows: list, base_cost: int, jackpot_pool: int,
 
 
 def parse_page_state(html: str) -> Optional[dict]:
-    """从HTML中提取page_state JSON（花括号计数法）"""
-    page_state_start = html.find('page_state = ')
-    if page_state_start < 0:
+    """从HTML中提取__slotInitialState JSON（花括号计数法）"""
+    state_start = html.find('__slotInitialState')
+    if state_start < 0:
         return None
-    brace_start = html.find('{', page_state_start)
+    brace_start = html.find('{', state_start)
     if brace_start < 0:
         return None
     depth = 0
@@ -150,9 +150,7 @@ def parse_page_state(html: str) -> Optional[dict]:
 
 def parse_page_state_regex(html: str) -> Optional[dict]:
     """从HTML中提取page_state JSON（原正则方法，用于对比测试）"""
-    config_match = re.search(r'page_state\s*=\s*({.+?});\s*</script>', html, re.DOTALL)
-    if not config_match:
-        config_match = re.search(r'"page_state"\s*:\s*({.+?})\s*,\s*"', html, re.DOTALL)
+    config_match = re.search(r'__slotInitialState\s*=\s*({.+?});', html, re.DOTALL)
     if config_match:
         try:
             return json.loads(config_match.group(1))
@@ -263,11 +261,11 @@ def test_calc_slot_ev():
 def test_page_state_parsing():
     print("\n===== 测试 page_state 解析 =====")
 
-    # 模拟包含嵌套JSON的HTML
+    # 模拟包含嵌套JSON的HTML（使用真实网站的__slotInitialState格式）
     mock_html = """
     <html>
     <script>
-    var page_state = {"config": {"base_cost": 5000, "daily_free_spins": 2, "prize_rows": [{"name": "三连", "probability": 7.05}]}, "global_stats": {"total_spins": 19081, "jackpot_hits": 6}};
+    var __slotInitialState = {"config": {"base_cost": 5000, "daily_free_spins": 2, "prize_rows": [{"name": "三连", "probability": 7.05}]}, "global_stats": {"total_spins": 19081, "jackpot_hits": 6}};
     </script>
     </html>
     """
@@ -283,47 +281,28 @@ def test_page_state_parsing():
 
     # 原方法（正则）
     result_old = parse_page_state_regex(mock_html)
-    print(f"  原方法(正则): {'✅ 成功' if result_old else '❌ 失败（预期，因嵌套JSON截断）'}")
-    if result_old:
-        print(f"    解析结果: {json.dumps(result_old, ensure_ascii=False)[:100]}")
+    print(f"  原方法(正则): {'✅ 成功' if result_old else '❌ 失败'}")
 
-    # 测试更复杂的嵌套
+    # 测试更复杂的嵌套（模拟真实网站5个prize_rows）
     complex_html = """
     <script>
-    page_state = {"config": {"base_cost": 5000, "prize_rows": [{"name": "🍒", "probability": 7.05, "payout_multiplier": 1.25}, {"name": "🍋", "probability": 25.0, "payout_multiplier": 0.375}], "daily_free_spins": 2}, "global_stats": {"total_spins": 50000, "jackpot_hits": 12, "prize_summary": {"🍒": 1000, "🍋": 5000}}};
+    __slotInitialState = {"config": {"base_cost": 5000, "prize_rows": [{"name": "普通三连", "probability": 7.05, "payout_multiplier": 1.25}, {"name": "二连 AAB", "probability": 8.34, "payout_multiplier": 0.375}, {"name": "二连 ABA", "probability": 8.33, "payout_multiplier": 0.375}, {"name": "二连 BAA", "probability": 8.33, "payout_multiplier": 0.375}, {"name": "未中奖", "probability": 67.95, "payout_multiplier": 0}], "daily_free_spins": 2}, "global_stats": {"total_spins": 50000, "jackpot_hits": 12, "prize_summary": {"🍒": 1000, "🍋": 5000}}};
     </script>
     """
     result_complex = parse_page_state(complex_html)
-    print(f"  复杂嵌套解析: {'✅ 成功' if result_complex else '❌ 失败'}")
+    print(f"  复杂嵌套解析(5行): {'✅ 成功' if result_complex else '❌ 失败'}")
     if result_complex:
         prize_rows = result_complex.get("config", {}).get("prize_rows", [])
         print(f"    奖品行数: {len(prize_rows)}")
-        assert len(prize_rows) == 2
-        assert prize_rows[0]["name"] == "🍒"
+        assert len(prize_rows) == 5
+        assert prize_rows[0]["name"] == "普通三连"
         assert result_complex["global_stats"]["total_spins"] == 50000
 
-    # 测试无page_state的HTML
+    # 测试无__slotInitialState的HTML
     no_state_html = "<html><body>Hello</body></html>"
     result_none = parse_page_state(no_state_html)
     assert result_none is None
-    print(f"  无page_state处理: ✅ 正确返回None")
-
-    # 关键对比测试：模拟真实场景，page_state不在<script>标签内
-    # 原正则的第二个模式 '"page_state"\s*:\s*({.+?})\s*,\s*"' 没有;锚点，会截断嵌套JSON
-    real_world_html = """
-    <html><body>
-    <div id="app" data-page='{"page_state": {"config": {"base_cost": 5000, "prize_rows": [{"name":"🍒","prob":7.05}]}, "global_stats": {"spins": 19081}}}'></div>
-    </body></html>
-    """
-    result_new_rw = parse_page_state(real_world_html)
-    # 新方法找不到 'page_state = ' 所以返回None（这是预期的，因为格式不同）
-    print(f"  真实场景(新方法): {'✅ 返回None(格式不匹配)' if result_new_rw is None else '❌'}")
-    result_old_rw = parse_page_state_regex(real_world_html)
-    # 原正则的第二个模式会匹配但截断
-    print(f"  真实场景(原正则): {'❌ 截断解析(预期失败)' if result_old_rw and len(json.dumps(result_old_rw, ensure_ascii=False)) < 50 else '✅ 正确拒绝'}")
-    if result_old_rw:
-        print(f"    截断结果: {json.dumps(result_old_rw, ensure_ascii=False)[:80]}")
-    print("  ⚠️ 说明: 新方法要求 'page_state = ' 精确匹配，若网站格式变化需调整")
+    print(f"  无__slotInitialState: ✅ 正确返回None")
 
 
 def test_lottery_response_parsing():
@@ -533,23 +512,15 @@ def test_http_slot_page():
 
         html = resp.text
 
-        # 提取spin_token
-        token_match = re.search(r'spin_token["\s:=]+["\']?([a-f0-9]{32})["\']?', html)
-        if not token_match:
-            token_match = re.search(r'name=["\']spin_token["\']\s+value=["\']([^"\']+)["\']', html)
-        if not token_match:
-            token_match = re.search(r'spin_token\s*=\s*["\']([^"\']+)["\']', html)
-        if not token_match:
-            token_match = re.search(r'spin_token["\']?\s*:\s*["\']?([a-f0-9]+)["\']?', html)
-        spin_token = token_match.group(1) if token_match else None
-        print(f"  spin_token: {'✅ 获取成功 (' + spin_token[:16] + '...)' if spin_token else '❌ 未找到'}")
-
         # 提取page_state（新方法）
         page_state = parse_page_state(html)
         if page_state:
             config = page_state.get("config", {})
-            global_stats = page_state.get("global_stats", {})
+            user_state = page_state.get("user_state", {}) or {}
+            global_stats = config.get("global_stats", {}) or {}
+            spin_token = (user_state.get("spin_token", "") or None) or None
             print(f"  page_state解析: ✅ 成功")
+            print(f"  spin_token(来自JSON): {'✅ ' + spin_token[:16] + '...' if spin_token else '❌ 未找到'}")
             print(f"    base_cost={config.get('base_cost')}")
             print(f"    daily_free_spins={config.get('daily_free_spins')}")
             print(f"    daily_play_limit={config.get('daily_play_limit')}")
@@ -570,9 +541,6 @@ def test_http_slot_page():
             print(f"  明细: {ev_detail}")
         else:
             print(f"  page_state解析: ❌ 失败")
-            # 尝试原正则方法对比
-            page_state_old = parse_page_state_regex(html)
-            print(f"  原正则方法: {'✅ 成功' if page_state_old else '❌ 也失败'}")
 
     except Exception as e:
         print(f"  ❌ 异常: {e}")
