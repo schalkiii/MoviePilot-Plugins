@@ -474,6 +474,8 @@ class TangptLottery(_PluginBase):
                         "completed_count": 0,
                         "request_count": 0,
                         "prizes": [],
+                        "total_cost": 0,
+                        "total_compensated": 0,
                         "status": "running",
                         "message": ""
                     }
@@ -492,6 +494,8 @@ class TangptLottery(_PluginBase):
 
                 all_prizes = today_record.get("prizes", [])
                 request_count = today_record.get("request_count", 0)
+                total_cost = today_record.get("total_cost", 0)
+                total_compensated = today_record.get("total_compensated", 0)
 
                 while completed < target:
                     draw_count = min(self._draw_count, target - completed)
@@ -503,6 +507,8 @@ class TangptLottery(_PluginBase):
                         today_record["completed_count"] = completed
                         today_record["request_count"] = request_count
                         today_record["prizes"] = all_prizes
+                        today_record["total_cost"] = total_cost
+                        today_record["total_compensated"] = total_compensated
                         self.__save_records(records)
                         if self._notify:
                             prize_text = ""
@@ -522,12 +528,17 @@ class TangptLottery(_PluginBase):
                     all_prizes.extend(prizes)
                     completed += draw_count
                     request_count += 1
+                    total_cost += result.get("total_cost", 0)
+                    total_compensated += result.get("total_compensated", 0)
 
-                    logger.info(f"躺平自动抽奖：第 {request_count} 批请求完成，抽得 {len(prizes)} 个奖品: {', '.join(prizes) if prizes else '无'}")
+                    logger.info(f"躺平自动抽奖：第 {request_count} 批请求完成，抽得 {len(prizes)} 个奖品: {', '.join(prizes[:10]) if prizes else '无'}"
+                                + (f" (共{len(prizes)}个)" if len(prizes) > 10 else ""))
 
                     today_record["completed_count"] = completed
                     today_record["request_count"] = request_count
                     today_record["prizes"] = all_prizes
+                    today_record["total_cost"] = total_cost
+                    today_record["total_compensated"] = total_compensated
                     today_record["message"] = f"已完成 {completed}/{target}"
 
                     vip_prize = any("VIP" in p or "vip" in p for p in prizes)
@@ -550,7 +561,8 @@ class TangptLottery(_PluginBase):
                     self.__send_lottery_notification(today_record, all_prizes)
 
                 prize_summary = "、".join([f"{name}x{count}" for name, count in Counter(all_prizes).most_common()]) if all_prizes else "无"
-                logger.info(f"躺平自动抽奖任务完成，共抽奖 {completed} 次，奖品汇总: {prize_summary}")
+                cost_summary = f"，总花费={total_cost}，返还={total_compensated}" if total_cost > 0 else ""
+                logger.info(f"躺平自动抽奖任务完成，共抽奖 {completed} 次{cost_summary}，奖品汇总: {prize_summary}")
 
             except Exception as e:
                 logger.error(f"躺平自动抽奖任务异常：{e}")
@@ -605,18 +617,28 @@ class TangptLottery(_PluginBase):
 
             logger.info(f"躺平抽奖原始响应: {response.text[:800]}")
 
-            prizes = []
             if isinstance(result, dict):
-                if result.get("status") == "error" or result.get("ret") == "error":
-                    return {"success": False, "message": result.get("msg") or result.get("message") or "抽奖失败"}
+                if result.get("ok"):
+                    prizes = []
+                    total_cost = result.get("total_cost", 0)
+                    total_compensated = result.get("total_compensated", 0)
+                    for item in result.get("items", []):
+                        name = TangptLottery.__extract_prize_name(item)
+                        item_count = item.get("count", 1) if isinstance(item, dict) else 1
+                        if name:
+                            prizes.extend([name] * item_count)
+                    return {
+                        "success": True,
+                        "prizes": prizes,
+                        "total_cost": total_cost,
+                        "total_compensated": total_compensated,
+                        "raw": result
+                    }
+                else:
+                    msg = result.get("msg") or result.get("message") or "抽奖失败"
+                    return {"success": False, "message": msg}
 
-                data_field = result.get("data") or result.get("result") or result
-                prizes = self.__parse_prizes(data_field)
-
-                if not prizes:
-                    prizes = self.__parse_prizes(result)
-
-            return {"success": True, "prizes": prizes, "raw": result}
+            return {"success": False, "message": f"响应格式异常: {str(result)[:200]}"}
 
         except requests.exceptions.RequestException as e:
             return {"success": False, "message": f"请求异常: {str(e)}"}
@@ -628,44 +650,13 @@ class TangptLottery(_PluginBase):
         if isinstance(item, str):
             return item
         if isinstance(item, dict):
-            for key in ["prize", "prize_name", "name", "title", "reward",
+            for key in ["name", "prize", "prize_name", "title", "reward",
                          "reward_name", "award", "award_name", "gift", "gift_name",
                          "content", "text", "description", "prize_type", "type"]:
                 value = item.get(key)
                 if value and isinstance(value, str):
                     return value
         return None
-
-    @staticmethod
-    def __parse_prizes(data_field) -> List[str]:
-        prizes = []
-        if isinstance(data_field, list):
-            for item in data_field:
-                prize = TangptLottery.__extract_prize_name(item)
-                if prize:
-                    prizes.append(prize)
-        elif isinstance(data_field, dict):
-            list_keys = ["items", "prizes", "list", "prize_list", "reward_list",
-                         "award_list", "gift_list", "data_list", "records"]
-            for key in list_keys:
-                items = data_field.get(key)
-                if isinstance(items, list) and items:
-                    for item in items:
-                        prize = TangptLottery.__extract_prize_name(item)
-                        if prize:
-                            prizes.append(prize)
-                    if prizes:
-                        return prizes
-
-            prize = TangptLottery.__extract_prize_name(data_field)
-            if prize:
-                prizes.append(prize)
-
-            if not prizes:
-                msg = data_field.get("msg") or data_field.get("message") or ""
-                if msg:
-                    prizes.append(msg)
-        return prizes
 
     def __fetch_lottery_info(self) -> Dict[str, Any]:
         info = {
@@ -718,11 +709,17 @@ class TangptLottery(_PluginBase):
         prize_text = "\n".join([f"  {name}: {count}次" for name, count in prize_counter.most_common()])
         if not prize_text:
             prize_text = "  无奖品记录"
+        total_cost = record.get("total_cost", 0)
+        total_compensated = record.get("total_compensated", 0)
+        cost_text = ""
+        if total_cost > 0:
+            net_cost = total_cost - total_compensated
+            cost_text = f"\n花费：{total_cost:,}  返还：{total_compensated:,}  净支出：{net_cost:,}"
         self.post_message(
             mtype=NotificationType.SiteMessage,
             title="【躺平自动抽奖助手】",
             text=f"日期：{record.get('date')}\n"
-                 f"完成：{record.get('completed_count', 0)}/{record.get('target_count', 0)}\n"
+                 f"完成：{record.get('completed_count', 0)}/{record.get('target_count', 0)}{cost_text}\n"
                  f"状态：{self.__status_text(record.get('status'))}\n"
                  f"奖品：\n{prize_text}"
         )
