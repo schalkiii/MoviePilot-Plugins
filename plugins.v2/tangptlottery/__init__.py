@@ -47,7 +47,6 @@ class TangptLottery(_PluginBase):
     _notify = True
     _run_once = False
     _slot_enabled = False
-    _slot_multiplier = 1
     _slot_max_spins = 100
     _slot_ev_only = True
     _lock = threading.Lock()
@@ -63,7 +62,6 @@ class TangptLottery(_PluginBase):
         self._notify = bool(config.get("notify", True))
         self._run_once = bool(config.get("run_once", False))
         self._slot_enabled = bool(config.get("slot_enabled", False))
-        self._slot_multiplier = self.__safe_int(config.get("slot_multiplier"), 1, min_value=1)
         self._slot_max_spins = self.__safe_int(config.get("slot_max_spins"), 100, min_value=1)
         self._slot_ev_only = bool(config.get("slot_ev_only", True))
         logger.info(
@@ -82,7 +80,6 @@ class TangptLottery(_PluginBase):
                 "cron": self._cron,
                 "notify": self._notify,
                 "slot_enabled": self._slot_enabled,
-                "slot_multiplier": self._slot_multiplier,
                 "slot_max_spins": self._slot_max_spins,
                 "slot_ev_only": self._slot_ev_only,
                 "run_once": False
@@ -359,22 +356,6 @@ class TangptLottery(_PluginBase):
                                                                     {
                                                                         "component": "VTextField",
                                                                         "props": {
-                                                                            "model": "slot_multiplier",
-                                                                            "label": "倍率",
-                                                                            "type": "number",
-                                                                            "min": 1,
-                                                                            "hint": "每次旋转的倍率，消耗=倍率×底注(5000)。倍率1消耗5000，倍率2消耗10000，派彩也翻倍"
-                                                                        }
-                                                                    }
-                                                                ]
-                                                            },
-                                                            {
-                                                                "component": "VCol",
-                                                                "props": {"cols": 12, "md": 3},
-                                                                "content": [
-                                                                    {
-                                                                        "component": "VTextField",
-                                                                        "props": {
                                                                             "model": "slot_max_spins",
                                                                             "label": "最大旋转次数",
                                                                             "type": "number",
@@ -519,7 +500,6 @@ class TangptLottery(_PluginBase):
             "cron": self._cron,
             "notify": self._notify,
             "slot_enabled": self._slot_enabled,
-            "slot_multiplier": self._slot_multiplier,
             "slot_max_spins": self._slot_max_spins,
             "slot_ev_only": self._slot_ev_only,
             "run_once": False
@@ -686,7 +666,6 @@ class TangptLottery(_PluginBase):
                 "cron": self._cron,
                 "notify": self._notify,
                 "slot_enabled": self._slot_enabled,
-                "slot_multiplier": self._slot_multiplier,
                 "slot_max_spins": self._slot_max_spins,
                 "slot_ev_only": self._slot_ev_only,
                 "run_once": False
@@ -968,7 +947,7 @@ class TangptLottery(_PluginBase):
                 logger.info(f"躺平老虎机：{ev_text}")
                 logger.info(f"躺平老虎机EV明细: {ev_detail}")
 
-                multiplier = self._slot_multiplier
+                multiplier = 1
                 per_spin_cost = base_cost * multiplier
 
                 total_spins = 0
