@@ -1049,42 +1049,73 @@ class TangptLottery(_PluginBase):
         if not prize_rows or base_cost <= 0:
             return 0.0, "无数据"
 
-        base_rtp = 0.0
+        total_expected_payout = 0.0
         row_details = []
         for row in prize_rows:
             prob = row.get("probability", 0) / 100.0
             payout_mult = row.get("payout_multiplier", 0)
-            row_rtp = prob * payout_mult
-            base_rtp += row_rtp
-            row_details.append(f"{row.get('name','?')}: {row.get('probability',0):.2f}% ×{payout_mult} = RTP {row_rtp*100:.2f}%")
+            payout = payout_mult * base_cost
+            expected = prob * payout
+            total_expected_payout += expected
+            row_details.append(
+                f"{row.get('name','?')}: "
+                f"概率{row.get('probability',0):.2f}% × "
+                f"派彩{payout:,} = "
+                f"期望{expected:.2f}"
+            )
 
-        base_ev = base_rtp * base_cost - base_cost
+        base_ev = total_expected_payout - base_cost
+        base_rtp = total_expected_payout / base_cost * 100
 
         jackpot_ev = 0.0
         jackpot_prob = 0.0
         jackpot_detail = ""
 
-        if jackpot_weight > 0 and total_weight > 0:
-            jackpot_prob = jackpot_weight / (total_weight + jackpot_weight)
-            jackpot_ev = jackpot_prob * jackpot_pool
-            jackpot_detail = f"Jackpot: 权重{jackpot_weight}/{total_weight+jackpot_weight} = {jackpot_prob*100:.4f}%, 期望+{jackpot_ev:.2f}/次"
-        elif jackpot_hits > 0 and total_spins_stat > 0:
+        if jackpot_hits > 0 and total_spins_stat > 0:
             jackpot_prob = jackpot_hits / total_spins_stat
             jackpot_ev = jackpot_prob * jackpot_pool
-            jackpot_detail = f"Jackpot(历史): {jackpot_hits}/{total_spins_stat} = {jackpot_prob*100:.4f}%, 期望+{jackpot_ev:.2f}/次"
+            triple_prob = 0
+            for row in prize_rows:
+                if row.get("rule_type") == "triple_any":
+                    triple_prob = row.get("probability", 0) / 100.0
+                    break
+            if triple_prob > 0:
+                p_symbol_given_triple = jackpot_prob / triple_prob * 100
+                jackpot_detail = (
+                    f"Jackpot: 历史{jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
+                    f"理论=P(三连={triple_prob*100:.2f}%)×P(7|三连={p_symbol_given_triple:.2f}%) | "
+                    f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
+                )
+            else:
+                jackpot_detail = (
+                    f"Jackpot: 历史{jackpot_hits}/{total_spins_stat}={jackpot_prob*100:.4f}% | "
+                    f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
+                )
+        elif jackpot_weight > 0 and total_weight > 0:
+            jackpot_prob = jackpot_weight / total_weight
+            jackpot_ev = jackpot_prob * jackpot_pool
+            jackpot_detail = (
+                f"Jackpot: 权重{jackpot_weight}/{total_weight}={jackpot_prob*100:.4f}% | "
+                f"奖池{jackpot_pool:,} × {jackpot_prob*100:.4f}% = 期望+{jackpot_ev:.2f}"
+            )
 
         total_ev = base_ev + jackpot_ev
-        total_rtp = (base_cost + total_ev) / base_cost * 100 if base_cost > 0 else 0
+        total_rtp = (total_expected_payout + jackpot_ev) / base_cost * 100
 
         detail_parts = [
             f"底注={base_cost:,}",
-            f"基础RTP={base_rtp*100:.2f}%",
-            f"基础EV={base_ev:+.2f}",
+            f"--- 各等奖期望 ---",
+        ] + row_details + [
+            f"--- 汇总 ---",
+            f"基础期望派彩={total_expected_payout:.2f}",
+            f"基础EV={total_expected_payout:,} - {base_cost:,} = {base_ev:+,.2f}",
+            f"基础RTP={base_rtp:.2f}%",
         ]
         if jackpot_detail:
             detail_parts.append(jackpot_detail)
+        detail_parts.append(f"综合期望派彩={total_expected_payout+jackpot_ev:.2f}")
+        detail_parts.append(f"综合EV={total_ev:+,.2f}/次")
         detail_parts.append(f"综合RTP={total_rtp:.2f}%")
-        detail_parts.append(f"综合EV={total_ev:+.2f}/次")
 
         return total_ev, " | ".join(detail_parts)
 
