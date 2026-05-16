@@ -972,6 +972,7 @@ class TangptLottery(_PluginBase):
                     if not result.get("success"):
                         logger.error(f"躺平老虎机免费抽第{i+1}次失败: {result.get('message')}")
                         break
+                    spin_token = self.__refresh_spin_token(spin_token, result)
                     free_used += 1
                     total_spins += 1
                     total_cost += result.get("total_cost", 0)
@@ -989,12 +990,13 @@ class TangptLottery(_PluginBase):
                     time.sleep(1)
 
                 if max_paid > 0:
-                    logger.info(f"躺平老虎机：开始付费旋转，最多{max_paid}次，倍率x{multiplier}，每次消耗{per_spin_cost:,}")
+                    logger.info(f"躺平老虎机：开始付费旋转，最多{max_paid}次，每次消耗{per_spin_cost:,}")
                     for i in range(max_paid):
                         result = self.__do_slot_spin(spin_token, multiplier)
                         if not result.get("success"):
                             logger.error(f"躺平老虎机第{i+1}次付费失败: {result.get('message')}")
                             break
+                        spin_token = self.__refresh_spin_token(spin_token, result)
                         total_spins += 1
                         total_cost += result.get("total_cost", 0)
                         total_payout += result.get("payout", 0)
@@ -1194,6 +1196,15 @@ class TangptLottery(_PluginBase):
 
         return total_ev, " | ".join(detail_parts)
 
+    def __refresh_spin_token(self, current_token: str, spin_result: dict) -> str:
+        new_token = spin_result.get("new_spin_token", "")
+        if new_token:
+            return new_token
+        page_data = self.__fetch_slot_page()
+        if page_data and page_data.get("spin_token"):
+            return page_data.get("spin_token")
+        return current_token
+
     def __do_slot_spin(self, spin_token: str, multiplier: int = 1) -> Dict[str, Any]:
         try:
             headers = {
@@ -1228,6 +1239,7 @@ class TangptLottery(_PluginBase):
                     is_jackpot = row.get("is_jackpot", False)
                 if not is_jackpot:
                     is_jackpot = spin_result == "triple_win"
+                new_spin_token = result.get("spin_token") or ""
                 return {
                     "success": True,
                     "result": spin_result,
@@ -1241,6 +1253,7 @@ class TangptLottery(_PluginBase):
                     "jackpot_pool": result.get("jackpot_pool", 0),
                     "balance_after": result.get("balance_after", 0),
                     "row": row,
+                    "new_spin_token": new_spin_token,
                     "raw": result
                 }
             else:
