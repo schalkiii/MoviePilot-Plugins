@@ -23,9 +23,9 @@ urllib3.disable_warnings(InsecureRequestWarning)
 
 class TangptLottery(_PluginBase):
     plugin_name = "躺平自动抽奖助手"
-    plugin_desc = "躺平站点自动抽奖，支持定时抽奖、中奖通知、获取站点Cookie等功能。"
+    plugin_desc = "躺平站点自动抽奖+老虎机，支持定时抽奖、中奖通知、期望值分析、获取站点Cookie等功能。"
     plugin_icon = "Moviepilot_A.png"
-    plugin_version = "1.1.0"
+    plugin_version = "1.2.0"
     plugin_author = "schalkiii"
     author_url = ""
     plugin_config_prefix = "tangptlottery_"
@@ -34,6 +34,8 @@ class TangptLottery(_PluginBase):
 
     DRAW_URL = "https://www.tangpt.top/web/omnibot/lottery/draw"
     LOTTERY_PAGE_URL = "https://www.tangpt.top/omnibot_lottery.php"
+    SLOT_DRAW_URL = "https://www.tangpt.top/web/omnibot/slot-machine/draw"
+    SLOT_PAGE_URL = "https://www.tangpt.top/omnibot_slot.php"
     SITE_DOMAIN = "www.tangpt.top"
     MAX_HISTORY = 30
 
@@ -44,6 +46,10 @@ class TangptLottery(_PluginBase):
     _cron = "10 2 * * *"
     _notify = True
     _run_once = False
+    _slot_enabled = False
+    _slot_multiplier = 1
+    _slot_max_spins = 100
+    _slot_ev_only = True
     _lock = threading.Lock()
 
     def init_plugin(self, config: dict = None):
@@ -56,10 +62,15 @@ class TangptLottery(_PluginBase):
         self._cron = (config.get("cron") or "10 2 * * *").strip()
         self._notify = bool(config.get("notify", True))
         self._run_once = bool(config.get("run_once", False))
+        self._slot_enabled = bool(config.get("slot_enabled", False))
+        self._slot_multiplier = self.__safe_int(config.get("slot_multiplier"), 1, min_value=1)
+        self._slot_max_spins = self.__safe_int(config.get("slot_max_spins"), 100, min_value=1)
+        self._slot_ev_only = bool(config.get("slot_ev_only", True))
         logger.info(
             f"躺平自动抽奖助手初始化完成：enabled={self._enabled}, "
             f"draw_count={self._draw_count}, target_count={self._target_count}, "
-            f"cron={self._cron}, notify={self._notify}"
+            f"cron={self._cron}, notify={self._notify}, "
+            f"slot_enabled={self._slot_enabled}, slot_max={self._slot_max_spins}"
         )
         if self._run_once:
             self._run_once = False
@@ -70,6 +81,10 @@ class TangptLottery(_PluginBase):
                 "target_count": self._target_count,
                 "cron": self._cron,
                 "notify": self._notify,
+                "slot_enabled": self._slot_enabled,
+                "slot_multiplier": self._slot_multiplier,
+                "slot_max_spins": self._slot_max_spins,
+                "slot_ev_only": self._slot_ev_only,
                 "run_once": False
             })
             logger.info("收到配置页立即运行请求，后台启动抽奖任务")
@@ -87,6 +102,13 @@ class TangptLottery(_PluginBase):
                 "desc": "执行躺平抽奖，可指定次数 /tpcj 10",
                 "category": "抽奖",
                 "data": {"action": "tangpt_lottery"}
+            },
+            {
+                "cmd": "/tplhj",
+                "event": EventType.PluginAction,
+                "desc": "执行老虎机抽奖",
+                "category": "抽奖",
+                "data": {"action": "tangpt_slot"}
             }
         ]
 
@@ -107,6 +129,14 @@ class TangptLottery(_PluginBase):
                 "auth": "bear",
                 "summary": "获取躺平站点Cookie",
                 "description": "从站点管理中获取躺平站点的Cookie。"
+            },
+            {
+                "path": "/run_slot",
+                "endpoint": self.run_slot_api,
+                "methods": ["POST"],
+                "auth": "bear",
+                "summary": "立即执行老虎机抽奖",
+                "description": "按当前插件配置立即执行一次老虎机抽奖任务。"
             }
         ]
 
@@ -121,9 +151,9 @@ class TangptLottery(_PluginBase):
         return [
             {
                 "id": "TangptLottery",
-                "name": "躺平自动抽奖",
+                "name": "躺平自动抽奖+老虎机",
                 "trigger": trigger,
-                "func": self.run_lottery_task,
+                "func": self.run_all_tasks,
                 "kwargs": {}
             }
         ]
@@ -250,6 +280,99 @@ class TangptLottery(_PluginBase):
                         "content": [
                             {
                                 "component": "VCol",
+                                "props": {"cols": 12},
+                                "content": [
+                                    {
+                                        "component": "VCard",
+                                        "props": {"variant": "outlined", "class": "pa-3"},
+                                        "content": [
+                                            {
+                                                "component": "VCardTitle",
+                                                "props": {"class": "text-subtitle-1"},
+                                                "text": "老虎机"
+                                            },
+                                            {
+                                                "component": "VCardText",
+                                                "content": [
+                                                    {
+                                                        "component": "VRow",
+                                                        "content": [
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VSwitch",
+                                                                        "props": {
+                                                                            "model": "slot_enabled",
+                                                                            "label": "启用老虎机",
+                                                                            "hint": "开启后将在定时任务中执行老虎机抽奖"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VSwitch",
+                                                                        "props": {
+                                                                            "model": "slot_ev_only",
+                                                                            "label": "仅期望盈利时抽",
+                                                                            "hint": "开启后仅在预期收益>0时才付费抽；关闭则无视期望值始终抽"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VTextField",
+                                                                        "props": {
+                                                                            "model": "slot_multiplier",
+                                                                            "label": "倍率",
+                                                                            "type": "number",
+                                                                            "min": 1,
+                                                                            "hint": "每次旋转的倍率，消耗=倍率x底注"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            },
+                                                            {
+                                                                "component": "VCol",
+                                                                "props": {"cols": 12, "md": 3},
+                                                                "content": [
+                                                                    {
+                                                                        "component": "VTextField",
+                                                                        "props": {
+                                                                            "model": "slot_max_spins",
+                                                                            "label": "最大旋转次数",
+                                                                            "type": "number",
+                                                                            "min": 1,
+                                                                            "max": 100,
+                                                                            "hint": "每日最多旋转次数（含免费）"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "component": "VRow",
+                        "content": [
+                            {
+                                "component": "VCol",
                                 "props": {"cols": 12, "md": 10},
                                 "content": [
                                     {
@@ -299,6 +422,10 @@ class TangptLottery(_PluginBase):
             "target_count": self._target_count,
             "cron": self._cron,
             "notify": self._notify,
+            "slot_enabled": self._slot_enabled,
+            "slot_multiplier": self._slot_multiplier,
+            "slot_max_spins": self._slot_max_spins,
+            "slot_ev_only": self._slot_ev_only,
             "run_once": False
         }
 
@@ -425,8 +552,12 @@ class TangptLottery(_PluginBase):
         ]
 
     def run_once_api(self):
-        threading.Thread(target=self.run_lottery_task, daemon=True).start()
-        return {"status": "started", "message": "躺平抽奖任务已启动"}
+        threading.Thread(target=self.run_all_tasks, daemon=True).start()
+        return {"status": "started", "message": "躺平抽奖+老虎机任务已启动"}
+
+    def run_slot_api(self):
+        threading.Thread(target=self.run_slot_task, daemon=True).start()
+        return {"status": "started", "message": "老虎机抽奖任务已启动"}
 
     def get_cookie_api(self):
         result = self.__get_site_cookie_detail()
@@ -440,10 +571,20 @@ class TangptLottery(_PluginBase):
                 "target_count": self._target_count,
                 "cron": self._cron,
                 "notify": self._notify,
+                "slot_enabled": self._slot_enabled,
+                "slot_multiplier": self._slot_multiplier,
+                "slot_max_spins": self._slot_max_spins,
+                "slot_ev_only": self._slot_ev_only,
                 "run_once": False
             })
             return {"success": True, "cookie": cookie, "message": "Cookie获取成功"}
         return {"success": False, "cookie": "", "message": result.get("msg", "获取Cookie失败")}
+
+    def run_all_tasks(self):
+        self.run_lottery_task()
+        if self._slot_enabled:
+            time.sleep(3)
+            self.run_slot_task()
 
     def run_lottery_task(self, override_count: int = None):
         with self._lock:
@@ -575,19 +716,24 @@ class TangptLottery(_PluginBase):
 
     @eventmanager.register(EventType.PluginAction)
     def handle_command(self, event: Event):
-        if event.event_data.get("action") != "tangpt_lottery":
-            return
-        override_count = event.event_data.get("args")
-        if override_count:
-            try:
-                override_count = int(override_count)
-            except (ValueError, TypeError):
-                override_count = None
-        threading.Thread(
-            target=self.run_lottery_task,
-            args=(override_count,),
-            daemon=True
-        ).start()
+        action = event.event_data.get("action")
+        if action == "tangpt_lottery":
+            override_count = event.event_data.get("args")
+            if override_count:
+                try:
+                    override_count = int(override_count)
+                except (ValueError, TypeError):
+                    override_count = None
+            threading.Thread(
+                target=self.run_lottery_task,
+                args=(override_count,),
+                daemon=True
+            ).start()
+        elif action == "tangpt_slot":
+            threading.Thread(
+                target=self.run_slot_task,
+                daemon=True
+            ).start()
 
     def __do_draw(self, count: int) -> Dict[str, Any]:
         try:
@@ -657,6 +803,326 @@ class TangptLottery(_PluginBase):
                 if value and isinstance(value, str):
                     return value
         return None
+
+    def run_slot_task(self):
+        with self._lock:
+            try:
+                logger.info("躺平老虎机任务开始执行")
+                if not self._cookie:
+                    logger.error("躺平老虎机：未配置Cookie，无法执行")
+                    if self._notify:
+                        self.post_message(
+                            mtype=NotificationType.SiteMessage,
+                            title="【躺平老虎机】",
+                            text="未配置Cookie，无法执行老虎机任务"
+                        )
+                    return
+
+                page_data = self.__fetch_slot_page()
+                if not page_data:
+                    logger.error("躺平老虎机：获取页面数据失败")
+                    if self._notify:
+                        self.post_message(
+                            mtype=NotificationType.SiteMessage,
+                            title="【躺平老虎机】",
+                            text="获取老虎机页面数据失败，请检查Cookie是否有效"
+                        )
+                    return
+
+                spin_token = page_data.get("spin_token")
+                slot_config = page_data.get("slot_config", {})
+                if not spin_token:
+                    logger.error("躺平老虎机：未获取到spin_token")
+                    if self._notify:
+                        self.post_message(
+                            mtype=NotificationType.SiteMessage,
+                            title="【躺平老虎机】",
+                            text="未获取到spin_token，请检查Cookie是否有效"
+                        )
+                    return
+
+                base_cost = slot_config.get("base_cost", 5000)
+                daily_free_spins = slot_config.get("daily_free_spins", 2)
+                daily_play_limit = slot_config.get("daily_play_limit", 100)
+                jackpot_pool = slot_config.get("jackpot_pool", 0)
+                prize_rows = slot_config.get("prize_rows", [])
+
+                ev = self.__calc_slot_ev(prize_rows, base_cost, jackpot_pool)
+                ev_text = f"期望收益: {ev:+.2f}/每次 (底注{base_cost:,}, 奖池{jackpot_pool:,})"
+                logger.info(f"躺平老虎机：{ev_text}")
+
+                multiplier = self._slot_multiplier
+                per_spin_cost = base_cost * multiplier
+
+                total_spins = 0
+                total_cost = 0
+                total_payout = 0
+                free_used = 0
+                wins = 0
+                losses = 0
+                jackpot_hit = False
+                results = []
+
+                max_paid = min(self._slot_max_spins - daily_free_spins, daily_play_limit - daily_free_spins)
+                if max_paid < 0:
+                    max_paid = 0
+
+                if self._slot_ev_only and ev < 0:
+                    logger.info(f"躺平老虎机：期望值为负({ev:+.2f})，跳过付费旋转，仅执行免费抽")
+                    max_paid = 0
+
+                for i in range(daily_free_spins):
+                    result = self.__do_slot_spin(spin_token, multiplier)
+                    if not result.get("success"):
+                        logger.error(f"躺平老虎机免费抽第{i+1}次失败: {result.get('message')}")
+                        break
+                    free_used += 1
+                    total_spins += 1
+                    total_cost += result.get("total_cost", 0)
+                    total_payout += result.get("payout", 0)
+                    spin_result = result.get("result", "lose")
+                    if spin_result == "win" or spin_result == "triple_win":
+                        wins += 1
+                    else:
+                        losses += 1
+                    if result.get("is_jackpot"):
+                        jackpot_hit = True
+                    results.append(result)
+                    reels_info = " | ".join([r.get("name", "?") for r in result.get("reels", [])])
+                    logger.info(f"躺平老虎机免费抽第{i+1}次: {spin_result}, reels=[{reels_info}], payout={result.get('payout', 0)}")
+                    time.sleep(1)
+
+                if max_paid > 0:
+                    logger.info(f"躺平老虎机：开始付费旋转，最多{max_paid}次，倍率x{multiplier}，每次消耗{per_spin_cost:,}")
+                    for i in range(max_paid):
+                        result = self.__do_slot_spin(spin_token, multiplier)
+                        if not result.get("success"):
+                            logger.error(f"躺平老虎机第{i+1}次付费失败: {result.get('message')}")
+                            break
+                        total_spins += 1
+                        total_cost += result.get("total_cost", 0)
+                        total_payout += result.get("payout", 0)
+                        spin_result = result.get("result", "lose")
+                        if spin_result == "win" or spin_result == "triple_win":
+                            wins += 1
+                        else:
+                            losses += 1
+                        if result.get("is_jackpot"):
+                            jackpot_hit = True
+                        results.append(result)
+                        reels_info = " | ".join([r.get("name", "?") for r in result.get("reels", [])])
+                        logger.info(f"躺平老虎机付费第{i+1}次: {spin_result}, reels=[{reels_info}], payout={result.get('payout', 0)}")
+                        time.sleep(1)
+
+                if total_spins == 0:
+                    logger.warn("躺平老虎机：没有执行任何旋转")
+                    return
+
+                net = total_payout - total_cost
+                status_text = f"完成 {total_spins} 转 (免费{free_used}+付费{total_spins-free_used}), "
+                status_text += f"赢{wins}/输{losses}, "
+                status_text += f"花费{total_cost:,}, 派彩{total_payout:,}, 净收益{net:+,}"
+                if jackpot_hit:
+                    status_text += ", 命中Jackpot!"
+                logger.info(f"躺平老虎机任务完成: {status_text}")
+
+                today = datetime.now().strftime("%Y-%m-%d")
+                slot_record = {
+                    "date": today,
+                    "total_spins": total_spins,
+                    "free_used": free_used,
+                    "wins": wins,
+                    "losses": losses,
+                    "total_cost": total_cost,
+                    "total_payout": total_payout,
+                    "net": net,
+                    "jackpot_hit": jackpot_hit,
+                    "ev": ev,
+                    "jackpot_pool": jackpot_pool,
+                    "base_cost": base_cost,
+                    "multiplier": multiplier,
+                    "ev_only": self._slot_ev_only,
+                    "status": "completed"
+                }
+                slot_records = self.get_data("slot_records") or []
+                slot_records.insert(0, slot_record)
+                self.save_data("slot_records", slot_records[:self.MAX_HISTORY])
+
+                if self._notify:
+                    self.__send_slot_notification(slot_record, results, ev_text)
+
+            except Exception as e:
+                logger.error(f"躺平老虎机任务异常：{e}")
+                if self._notify:
+                    self.post_message(
+                        mtype=NotificationType.SiteMessage,
+                        title="【躺平老虎机】",
+                        text=f"老虎机任务异常：{str(e)}"
+                    )
+
+    def __fetch_slot_page(self) -> Optional[Dict[str, Any]]:
+        try:
+            headers = {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "cookie": self._cookie,
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+            }
+            response = requests.get(self.SLOT_PAGE_URL, headers=headers, timeout=15, verify=False)
+            if response.status_code != 200:
+                logger.error(f"躺平老虎机页面请求失败: HTTP {response.status_code}")
+                return None
+            html = response.text
+
+            token_match = re.search(r'spin_token["\s:=]+["\']?([a-f0-9]{32})["\']?', html)
+            if not token_match:
+                token_match = re.search(r'name=["\']spin_token["\']\s+value=["\']([^"\']+)["\']', html)
+            if not token_match:
+                token_match = re.search(r'spin_token\s*=\s*["\']([^"\']+)["\']', html)
+            if not token_match:
+                token_match = re.search(r'spin_token["\']?\s*:\s*["\']?([a-f0-9]+)["\']?', html)
+            spin_token = token_match.group(1) if token_match else None
+
+            config_match = re.search(r'page_state\s*=\s*({.+?});\s*</script>', html, re.DOTALL)
+            if not config_match:
+                config_match = re.search(r'"page_state"\s*:\s*({.+?})\s*,\s*"', html, re.DOTALL)
+            slot_config = {}
+            if config_match:
+                try:
+                    import json
+                    config_raw = config_match.group(1)
+                    page_state = json.loads(config_raw)
+                    slot_config = page_state.get("config", {})
+                except Exception:
+                    pass
+
+            if not slot_config:
+                slot_config = {
+                    "base_cost": 5000,
+                    "daily_free_spins": 2,
+                    "daily_play_limit": 100,
+                    "jackpot_pool": 0,
+                    "prize_rows": []
+                }
+
+            logger.info(f"躺平老虎机页面解析: spin_token={'OK' if spin_token else 'FAIL'}, "
+                        f"base_cost={slot_config.get('base_cost')}, free_spins={slot_config.get('daily_free_spins')}")
+            return {"spin_token": spin_token, "slot_config": slot_config}
+
+        except Exception as e:
+            logger.error(f"躺平老虎机页面获取异常: {e}")
+            return None
+
+    @staticmethod
+    def __calc_slot_ev(prize_rows: list, base_cost: int, jackpot_pool: int) -> float:
+        if not prize_rows or base_cost <= 0:
+            return 0.0
+        total_prob = 0.0
+        weighted_payout = 0.0
+        for row in prize_rows:
+            prob = row.get("probability", 0) / 100.0
+            payout_mult = row.get("payout_multiplier", 0)
+            weighted_payout += prob * payout_mult * base_cost
+            total_prob += prob
+        ev = weighted_payout - base_cost
+        return ev
+
+    def __do_slot_spin(self, spin_token: str, multiplier: int = 1) -> Dict[str, Any]:
+        try:
+            headers = {
+                "accept": "application/json, text/javascript, */*; q=0.01",
+                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "x-requested-with": "XMLHttpRequest",
+                "referer": self.SLOT_PAGE_URL,
+                "cookie": self._cookie,
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+            }
+            data = {"multiplier": str(multiplier), "spin_token": spin_token}
+            response = requests.post(
+                self.SLOT_DRAW_URL,
+                headers=headers,
+                data=data,
+                timeout=30,
+                verify=False
+            )
+            if response.status_code != 200:
+                return {"success": False, "message": f"HTTP {response.status_code}"}
+
+            try:
+                result = response.json()
+            except Exception:
+                return {"success": False, "message": f"响应解析失败: {response.text[:200]}"}
+
+            if isinstance(result, dict) and result.get("ok"):
+                spin_result = result.get("result", "lose")
+                is_jackpot = False
+                row = result.get("row", {})
+                if row:
+                    is_jackpot = row.get("is_jackpot", False)
+                if not is_jackpot:
+                    is_jackpot = spin_result == "triple_win"
+                return {
+                    "success": True,
+                    "result": spin_result,
+                    "reels": result.get("reels", []),
+                    "total_cost": result.get("total_cost", 0),
+                    "payout": result.get("payout", 0),
+                    "reward": result.get("reward", 0),
+                    "multiplier": result.get("multiplier", multiplier),
+                    "is_free_spin": result.get("is_free_spin", False),
+                    "is_jackpot": is_jackpot,
+                    "jackpot_pool": result.get("jackpot_pool", 0),
+                    "balance_after": result.get("balance_after", 0),
+                    "row": row,
+                    "raw": result
+                }
+            else:
+                msg = result.get("msg") or result.get("message") or "老虎机抽奖失败"
+                return {"success": False, "message": msg}
+
+        except requests.exceptions.RequestException as e:
+            return {"success": False, "message": f"请求异常: {str(e)}"}
+        except Exception as e:
+            return {"success": False, "message": f"未知异常: {str(e)}"}
+
+    def __send_slot_notification(self, record: dict, results: list, ev_text: str):
+        total_spins = record.get("total_spins", 0)
+        free_used = record.get("free_used", 0)
+        wins = record.get("wins", 0)
+        losses = record.get("losses", 0)
+        total_cost = record.get("total_cost", 0)
+        total_payout = record.get("total_payout", 0)
+        net = record.get("net", 0)
+        jackpot_hit = record.get("jackpot_hit", False)
+        jackpot_pool = record.get("jackpot_pool", 0)
+
+        spin_results = []
+        for r in results:
+            reels_icons = " | ".join([reel.get("name", "?") for reel in r.get("reels", [])])
+            sr = r.get("result", "?")
+            payout = r.get("payout", 0)
+            spin_results.append(f"  [{reels_icons}] {sr}, 派彩{payout:,}")
+
+        text = (
+            f"日期：{record.get('date')}\n"
+            f"{ev_text}\n"
+            f"旋转：{total_spins} 转 (免费{free_used}+付费{total_spins-free_used})\n"
+            f"结果：赢{wins} / 输{losses}\n"
+            f"花费：{total_cost:,}  派彩：{total_payout:,}\n"
+            f"净收益：{net:+,}"
+        )
+        if jackpot_hit:
+            text += "  Jackpot!"
+        if jackpot_pool > 0:
+            text += f"\n当前奖池：{jackpot_pool:,}"
+        text += "\n\n详情：\n" + "\n".join(spin_results[:15])
+        if len(spin_results) > 15:
+            text += f"\n  ... (共{len(spin_results)}转)"
+
+        self.post_message(
+            mtype=NotificationType.SiteMessage,
+            title="【躺平老虎机】",
+            text=text
+        )
 
     def __fetch_lottery_info(self) -> Dict[str, Any]:
         info = {
