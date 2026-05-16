@@ -37,6 +37,16 @@ MoviePilot-Plugins/
 └── .github/workflows/       # 发布工作流
 ```
 
+## 插件列表
+
+### V2 插件
+
+| 插件 | 目录 | 说明 |
+|------|------|------|
+| 藏宝阁PT任务领取 | [plugins.v2/cangbaogeclaim/](plugins.v2/cangbaogeclaim/) | 每月定时为藏宝阁PT领取任务，支持一键获取Cookie，飞书推送通知 |
+| NovaHD任务领取 | [plugins.v2/novahdclaim/](plugins.v2/novahdclaim/) | 每月定时为NovaHD领取任务，支持一键获取Cookie，飞书推送通知 |
+| 躺平自动抽奖助手 | [plugins.v2/tangptlottery/](plugins.v2/tangptlottery/) | 躺平站点自动抽奖+老虎机，支持定时抽奖、中奖通知、期望值分析 |
+
 ## 版本与加载规则
 
 - MoviePilot 会优先读取 `package.v2.json` 中与当前版本标识匹配的插件定义。
